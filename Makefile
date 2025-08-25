@@ -7,5 +7,9 @@ db-migration-create:
 db-migration-apply:
 	./db/apply-migration.sh $(op) $(sslmode)
 
+build:
+	go build -o bin/api ./cmd/api
+	go build -o bin/cli ./cmd/cli
+
 run-api:
-	air --build.cmd "./build.sh" --build.bin "./api/bin/vo2"
+	air --build.cmd "make build" --build.bin "./bin/api"

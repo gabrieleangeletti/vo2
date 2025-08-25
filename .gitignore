@@ -34,5 +34,5 @@ go.work.sum
 # Air directory
 tmp/
 
-# Bin
-api/bin/
+# Binaries
+bin/

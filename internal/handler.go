@@ -1,11 +1,11 @@
-package main
+package internal
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/gabrieleangeletti/stride/strava"
-	"github.com/gabrieleangeletti/vo2/core"
 	"github.com/jmoiron/sqlx"
 )
 
@@ -15,10 +15,16 @@ type Handler struct {
 }
 
 func NewHandler(db *sqlx.DB) *Handler {
-	return &Handler{
+	h := &Handler{
 		db:  db,
 		mux: http.NewServeMux(),
 	}
+
+	if err := stravaAuthHandler(h); err != nil {
+		log.Fatal(err)
+	}
+
+	return h
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -40,8 +46,8 @@ func stravaAuthHandler(h *Handler) error {
 		}
 
 		auth := strava.NewAuth(
-			core.GetSecret("STRAVA_CLIENT_ID", true),
-			core.GetSecret("STRAVA_CLIENT_SECRET", true),
+			GetSecret("STRAVA_CLIENT_ID", true),
+			GetSecret("STRAVA_CLIENT_SECRET", true),
 		)
 
 		tokenResponse, err := auth.ExchangeCodeForAccessToken(code)
