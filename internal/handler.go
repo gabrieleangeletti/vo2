@@ -5,8 +5,9 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/gabrieleangeletti/stride/strava"
 	"github.com/jmoiron/sqlx"
+
+	"github.com/gabrieleangeletti/stride/strava"
 )
 
 type Handler struct {

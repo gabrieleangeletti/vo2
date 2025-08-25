@@ -8,13 +8,7 @@ import (
 )
 
 func main() {
-	db, err := internal.NewDB(internal.CfgDB{
-		Host:     internal.GetSecret("POSTGRES_HOST", true),
-		Port:     internal.GetSecret("POSTGRES_PORT", true),
-		User:     internal.GetSecret("POSTGRES_USER", true),
-		Password: internal.GetSecret("POSTGRES_PASSWORD", true),
-		DB:       internal.GetSecret("POSTGRES_DB", true),
-	})
+	db, err := internal.NewDB(internal.DefaultDBConfig())
 	if err != nil {
 		panic(err)
 	}
