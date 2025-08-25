@@ -4,8 +4,8 @@ services:
             context: .
             dockerfile: Dockerfile.api
         restart: always
-        environment:
-            POSTGRES_HOST: db
+        env_file:
+            - .env.docker
         ports:
             - "8080:8080"
         depends_on:
@@ -22,7 +22,8 @@ services:
                 POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
                 POSTGRES_DB: ${POSTGRES_DB}
         restart: always
-        env_file: .env
+        env_file:
+            - .env.docker
         ports:
             - "5432:5432"
         volumes:

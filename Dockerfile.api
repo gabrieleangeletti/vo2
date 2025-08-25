@@ -2,9 +2,9 @@ FROM golang:1.25.0-bookworm
 
 RUN apt-get update
 
-WORKDIR /api
-
 COPY . .
 
-ENTRYPOINT [ "make", "run-api" ]
+RUN [ "make", "build" ]
+
+ENTRYPOINT [ "./bin/api" ]
 

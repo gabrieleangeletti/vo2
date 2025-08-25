@@ -1,0 +1,14 @@
+-- Create schema vo2. This schema will be used to store all the application tables.
+CREATE SCHEMA vo2;
+
+GRANT USAGE ON SCHEMA vo2 TO public;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA vo2 TO public;
+
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA vo2 TO public;
+
+GRANT USAGE ON SCHEMA vo2 TO postgres;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA vo2 TO postgres;
+
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA vo2 TO postgres;

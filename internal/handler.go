@@ -1,9 +1,10 @@
 package internal
 
 import (
-	"fmt"
+	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/jmoiron/sqlx"
 
@@ -57,7 +58,36 @@ func stravaAuthHandler(h *Handler) error {
 			return
 		}
 
-		fmt.Printf("Token response: %+v\n", tokenResponse)
+		credentialsRaw, err := json.Marshal(tokenResponse)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		provider, err := GetProvider(h.db, "strava")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		credentials := ProviderCredentials{
+			ProviderID:     provider.ID,
+			UserExternalID: strconv.Itoa(tokenResponse.Athlete.ID),
+			Credentials:    credentialsRaw,
+		}
+
+		err = credentials.Save(h.db)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		resp := map[string]bool{"success": true}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+
+		json.NewEncoder(w).Encode(resp)
 	})
 
 	return nil

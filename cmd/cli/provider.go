@@ -20,49 +20,46 @@ func NewProviderCmd(cfg Config) *cobra.Command {
 	}
 
 	cmd.AddCommand(stravaCmd)
+	stravaCmd.AddCommand(stravaAuthCmd)
 
 	return cmd
 }
 
 var stravaCmd = &cobra.Command{
 	Use:   "strava",
-	Short: "Strava cli customised for QPeaks",
-	Long:  `Strava cli customised for QPeaks.`,
+	Short: "Strava cli",
+	Long:  `Strava cli`,
 }
 
-func NewStravaImportActivitySummaryCmd(cfg Config) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "auth",
-		Short: "Generate Strava authorization URL",
-		Long:  `Generate Strava authorization URL`,
-		Run: func(cmd *cobra.Command, args []string) {
-			baseURL := internal.GetSecret("API_BASE_URL", true)
+var stravaAuthCmd = &cobra.Command{
+	Use:   "auth",
+	Short: "Generate Strava authorization URL",
+	Long:  `Generate Strava authorization URL`,
+	Run: func(cmd *cobra.Command, args []string) {
+		baseURL := internal.GetSecret("API_BASE_URL", true)
 
-			clientID := internal.GetSecret("STRAVA_CLIENT_ID", true)
-			clientSecret := internal.GetSecret("STRAVA_CLIENT_SECRET", true)
+		clientID := internal.GetSecret("STRAVA_CLIENT_ID", true)
+		clientSecret := internal.GetSecret("STRAVA_CLIENT_SECRET", true)
 
-			auth := strava.NewAuth(clientID, clientSecret)
+		auth := strava.NewAuth(clientID, clientSecret)
 
-			redirectURL := fmt.Sprintf("%s/providers/auth/strava/callback", baseURL)
-			authURL := auth.GetAuthorizationUrl(redirectURL)
+		redirectURL := fmt.Sprintf("%s/providers/auth/strava/callback", baseURL)
+		authURL := auth.GetAuthorizationUrl(redirectURL)
 
-			fmt.Println("Please visit the following URL to authenticate:")
-			fmt.Println(authURL)
+		fmt.Println("Please visit the following URL to authenticate:")
+		fmt.Println(authURL)
 
-			fmt.Print("Would you like to open this URL in your browser? (y/n): ")
-			reader := bufio.NewReader(os.Stdin)
-			response, _ := reader.ReadString('\n')
+		fmt.Print("Would you like to open this URL in your browser? (y/n): ")
+		reader := bufio.NewReader(os.Stdin)
+		response, _ := reader.ReadString('\n')
 
-			if strings.TrimSpace(response) == "y" {
-				err := internal.OpenURLInBrowser(authURL.String())
-				if err != nil {
-					fmt.Println("Failed to open the browser:", err)
-				}
+		if strings.TrimSpace(response) == "y" {
+			err := internal.OpenURLInBrowser(authURL.String())
+			if err != nil {
+				fmt.Println("Failed to open the browser:", err)
 			}
+		}
 
-			os.Exit(0)
-		},
-	}
-
-	return cmd
+		os.Exit(0)
+	},
 }
