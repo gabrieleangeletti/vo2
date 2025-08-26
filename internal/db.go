@@ -8,23 +8,25 @@ import (
 )
 
 type DBConfig struct {
-	Host     string
-	Port     string
-	User     string
-	Password string
-	DB       string
-	SSLMode  string
+	Host           string
+	Port           string
+	User           string
+	Password       string
+	DB             string
+	SSLMode        string
+	ChannelBinding string
 }
 
 func NewDB(cfg DBConfig) (*sqlx.DB, error) {
 	dsn := fmt.Sprintf(
-		"postgres://%s:%s@%s:%s/%s?sslmode=%s",
+		"postgres://%s:%s@%s:%s/%s?sslmode=%s&channel_binding=%s",
 		cfg.User,
 		cfg.Password,
 		cfg.Host,
 		cfg.Port,
 		cfg.DB,
 		cfg.SSLMode,
+		cfg.ChannelBinding,
 	)
 
 	db, err := sqlx.Open("pgx", dsn)
@@ -42,11 +44,12 @@ func NewDB(cfg DBConfig) (*sqlx.DB, error) {
 
 func DefaultDBConfig() DBConfig {
 	return DBConfig{
-		Host:     GetSecret("POSTGRES_HOST", true),
-		Port:     GetSecret("POSTGRES_PORT", true),
-		User:     GetSecret("POSTGRES_USER", true),
-		Password: GetSecret("POSTGRES_PASSWORD", true),
-		DB:       GetSecret("POSTGRES_DB", true),
-		SSLMode:  GetSecret("POSTGRES_SSLMODE", true),
+		Host:           GetSecret("POSTGRES_HOST", true),
+		Port:           GetSecret("POSTGRES_PORT", true),
+		User:           GetSecret("POSTGRES_USER", true),
+		Password:       GetSecret("POSTGRES_PASSWORD", true),
+		DB:             GetSecret("POSTGRES_DB", true),
+		SSLMode:        GetSecret("POSTGRES_SSLMODE", true),
+		ChannelBinding: GetSecret("POSTGRES_CHANNEL_BINDING", true),
 	}
 }
