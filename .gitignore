@@ -39,3 +39,6 @@ tmp/
 
 # Binaries
 bin/
+
+# AWS
+bin/lambda.zip

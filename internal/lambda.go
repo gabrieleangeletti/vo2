@@ -1,0 +1,103 @@
+package internal
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
+
+	"github.com/aws/aws-lambda-go/events"
+	"github.com/jmoiron/sqlx"
+)
+
+type LambdaHandler struct {
+	handler *Handler
+}
+
+func NewLambdaHandler(db *sqlx.DB) *LambdaHandler {
+	return &LambdaHandler{
+		handler: NewHandler(db),
+	}
+}
+
+func (l *LambdaHandler) HandleRequest(ctx context.Context, request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
+	httpRequest, err := l.convertToHTTPRequest(request)
+	if err != nil {
+		return events.APIGatewayV2HTTPResponse{
+			StatusCode: 500,
+			Body:       fmt.Sprintf("Failed to convert request: %v", err),
+		}, nil
+	}
+
+	recorder := &ResponseRecorder{
+		statusCode: 200,
+		headers:    make(http.Header),
+		body:       &bytes.Buffer{},
+	}
+
+	l.handler.ServeHTTP(recorder, httpRequest)
+
+	response := events.APIGatewayV2HTTPResponse{
+		StatusCode: recorder.statusCode,
+		Body:       recorder.body.String(),
+		Headers:    make(map[string]string),
+	}
+
+	for key, values := range recorder.headers {
+		if len(values) > 0 {
+			response.Headers[key] = values[0]
+		}
+	}
+
+	return response, nil
+}
+
+func (l *LambdaHandler) convertToHTTPRequest(request events.APIGatewayV2HTTPRequest) (*http.Request, error) {
+	u, err := url.Parse(request.RawPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse path: %w", err)
+	}
+
+	if request.RawQueryString != "" {
+		u.RawQuery = request.RawQueryString
+	}
+
+	var body bytes.Buffer
+	if request.Body != "" {
+		if request.IsBase64Encoded {
+			return nil, fmt.Errorf("base64 encoded bodies not supported")
+		}
+		body.WriteString(request.Body)
+	}
+
+	req, err := http.NewRequest(strings.ToUpper(request.RequestContext.HTTP.Method), u.String(), &body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+
+	for key, value := range request.Headers {
+		req.Header.Set(key, value)
+	}
+
+	return req, nil
+}
+
+type ResponseRecorder struct {
+	statusCode int
+	headers    http.Header
+	body       *bytes.Buffer
+}
+
+func (r *ResponseRecorder) Header() http.Header {
+	return r.headers
+}
+
+func (r *ResponseRecorder) Write(data []byte) (int, error) {
+	return r.body.Write(data)
+}
+
+func (r *ResponseRecorder) WriteHeader(statusCode int) {
+	r.statusCode = statusCode
+}

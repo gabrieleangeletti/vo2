@@ -76,9 +76,9 @@ var stravaWebhookCmd = &cobra.Command{
 
 func stravaCreateWebhookCmd(cfg Config) *cobra.Command {
 	return &cobra.Command{
-		Use:   "summary",
-		Short: "Normalize Strava activity summary",
-		Long:  `Normalize Strava activity summary`,
+		Use:   "create",
+		Short: "Create Strava webhook",
+		Long:  `Create Strava webhook`,
 		Run: func(cmd *cobra.Command, args []string) {
 			clientID := internal.GetSecret("STRAVA_CLIENT_ID", true)
 			clientSecret := internal.GetSecret("STRAVA_CLIENT_SECRET", true)
@@ -93,6 +93,11 @@ func stravaCreateWebhookCmd(cfg Config) *cobra.Command {
 
 			resp, err := auth.RegisterWebhook(callbackURL, verification.Token)
 			if err != nil {
+				err2 := internal.DeleteWebhookVerification(cfg.DB, verification)
+				if err2 != nil {
+					log.Fatal("Error deleting webhook verification:\n", err2)
+				}
+
 				log.Fatal("Error registering webhook:\n", err)
 			}
 
