@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 
@@ -21,6 +22,9 @@ func NewProviderCmd(cfg Config) *cobra.Command {
 
 	cmd.AddCommand(stravaCmd)
 	stravaCmd.AddCommand(stravaAuthCmd)
+	stravaCmd.AddCommand(stravaWebhookCmd)
+
+	stravaWebhookCmd.AddCommand(stravaCreateWebhookCmd(cfg))
 
 	return cmd
 }
@@ -43,7 +47,7 @@ var stravaAuthCmd = &cobra.Command{
 
 		auth := strava.NewAuth(clientID, clientSecret)
 
-		redirectURL := fmt.Sprintf("%s/providers/auth/strava/callback", baseURL)
+		redirectURL := fmt.Sprintf("%s/providers/strava/auth/callback", baseURL)
 		authURL := auth.GetAuthorizationUrl(redirectURL)
 
 		fmt.Println("Please visit the following URL to authenticate:")
@@ -56,10 +60,43 @@ var stravaAuthCmd = &cobra.Command{
 		if strings.TrimSpace(response) == "y" {
 			err := internal.OpenURLInBrowser(authURL.String())
 			if err != nil {
-				fmt.Println("Failed to open the browser:", err)
+				log.Fatalf("Failed to open the browser: %w", err)
 			}
 		}
 
 		os.Exit(0)
 	},
+}
+
+var stravaWebhookCmd = &cobra.Command{
+	Use:   "webhook",
+	Short: "Strava webhook commands",
+	Long:  `Strava webhook commands`,
+}
+
+func stravaCreateWebhookCmd(cfg Config) *cobra.Command {
+	return &cobra.Command{
+		Use:   "summary",
+		Short: "Normalize Strava activity summary",
+		Long:  `Normalize Strava activity summary`,
+		Run: func(cmd *cobra.Command, args []string) {
+			clientID := internal.GetSecret("STRAVA_CLIENT_ID", true)
+			clientSecret := internal.GetSecret("STRAVA_CLIENT_SECRET", true)
+			callbackURL := internal.GetSecret("STRAVA_WEBHOOK_CALLBACK_URL", true)
+
+			verification, err := internal.CreateWebhookVerification(cfg.DB)
+			if err != nil {
+				log.Fatal("Failed to create verification token:\n", err)
+			}
+
+			auth := strava.NewAuth(clientID, clientSecret)
+
+			resp, err := auth.RegisterWebhook(callbackURL, verification.Token)
+			if err != nil {
+				log.Fatal("Error registering webhook:\n", err)
+			}
+
+			fmt.Printf("Webhook successfully registered, id: %d", resp.ID)
+		},
+	}
 }
