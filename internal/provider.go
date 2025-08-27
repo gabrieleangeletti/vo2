@@ -2,10 +2,19 @@ package internal
 
 import (
 	"database/sql"
-	"encoding/json"
+	"errors"
+	"fmt"
+	"log/slog"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+
+	"github.com/gabrieleangeletti/stride/strava"
+)
+
+var (
+	ErrUnsupportedProvider = errors.New("unsupported provider")
 )
 
 type ConnectionType string
@@ -13,6 +22,43 @@ type ConnectionType string
 const (
 	OAuth2ConnectionType ConnectionType = "oauth2"
 )
+
+type OAuth2Token struct {
+	AccessToken  string
+	RefreshToken string
+	ExpiresAt    time.Time
+}
+
+type OAuth2Provider interface {
+	RefreshToken(refreshToken string) (*OAuth2Token, error)
+}
+
+type StravaProvider struct{}
+
+func (StravaProvider) RefreshToken(refreshToken string) (*OAuth2Token, error) {
+	auth := strava.NewAuth(
+		GetSecret("STRAVA_CLIENT_ID", true),
+		GetSecret("STRAVA_CLIENT_SECRET", true),
+	)
+
+	tokenResponse, err := auth.RefreshToken(refreshToken)
+	if err != nil {
+		slog.Error("Error refreshing token", "error", err)
+		return nil, err
+	}
+
+	token := OAuth2Token{
+		AccessToken:  tokenResponse.AccessToken,
+		RefreshToken: tokenResponse.RefreshToken,
+		ExpiresAt:    time.Unix(int64(tokenResponse.ExpiresAt), 0),
+	}
+
+	return &token, nil
+}
+
+var oauth2Providers = map[string]OAuth2Provider{
+	"strava": StravaProvider{},
+}
 
 type Provider struct {
 	ID             int            `json:"id" db:"id"`
@@ -36,24 +82,73 @@ func GetProvider(db *sqlx.DB, slug string) (*Provider, error) {
 	return &provider, nil
 }
 
-type ProviderCredentials struct {
-	ID             int             `json:"id" db:"id"`
-	ProviderID     int             `json:"providerId" db:"provider_id"`
-	UserExternalID string          `json:"userExternalId" db:"user_external_id"`
-	Credentials    json.RawMessage `json:"credentials" db:"credentials"`
-	CreatedAt      time.Time       `json:"createdAt" db:"created_at"`
-	UpdatedAt      sql.NullTime    `json:"updatedAt" db:"updated_at"`
-	DeletedAt      sql.NullTime    `json:"deletedAt" db:"deleted_at"`
+type ProviderOAuth2Credentials struct {
+	ID           int          `json:"id" db:"id"`
+	ProviderID   int          `json:"providerId" db:"provider_id"`
+	UserID       uuid.UUID    `json:"userId" db:"user_id"`
+	AccessToken  string       `json:"accessToken" db:"access_token"`
+	RefreshToken string       `json:"refresh_Token" db:"refresh_token"`
+	ExpiresAt    time.Time    `json:"expiresAt" db:"expires_at"`
+	CreatedAt    time.Time    `json:"createdAt" db:"created_at"`
+	UpdatedAt    sql.NullTime `json:"updatedAt" db:"updated_at"`
+	DeletedAt    sql.NullTime `json:"deletedAt" db:"deleted_at"`
 }
 
-func (c *ProviderCredentials) Save(db *sqlx.DB) error {
-	var err error
+func (c *ProviderOAuth2Credentials) Expired(buffer time.Duration) bool {
+	return time.Now().Add(-buffer).After(c.ExpiresAt)
+}
 
-	_, err = db.NamedExec(`
-	INSERT INTO vo2.provider_credentials (provider_id, user_external_id, credentials)
-	VALUES (:provider_id, :user_external_id, :credentials)
-	ON CONFLICT (provider_id, user_external_id) DO UPDATE SET credentials = :credentials
+func (c *ProviderOAuth2Credentials) Save(db IDB) error {
+	_, err := db.NamedExec(`
+	INSERT INTO vo2.provider_oauth2_credentials
+		(provider_id, user_id, access_token, refresh_token, expires_at)
+	VALUES
+		(:provider_id, :user_id, :access_token, :refresh_token, :expires_at)
+	ON CONFLICT
+		(provider_id, user_id)
+	DO UPDATE SET
+		access_token = :access_token, refresh_token = :refresh_token, expires_at = :expires_at
 	`, c)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func GetProviderOAuth2Credentials(db *sqlx.DB, providerID int, userID uuid.UUID) (*ProviderOAuth2Credentials, error) {
+	var credentials ProviderOAuth2Credentials
+
+	err := db.Get(&credentials, "SELECT * FROM vo2.provider_oauth2_credentials WHERE provider_id = $1 AND user_id = $2", providerID, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &credentials, nil
+}
+
+func refreshOAuth2CredentialsIfExpired(db *sqlx.DB, provider *Provider, credentials *ProviderOAuth2Credentials) error {
+	if credentials.Expired(5 * time.Minute) {
+		slog.Info("token expired, refreshing")
+
+		oauth2Provider, ok := oauth2Providers[provider.Slug]
+		if !ok {
+			return fmt.Errorf("%w: %s", ErrUnsupportedProvider, provider.Slug)
+		}
+
+		newToken, err := oauth2Provider.RefreshToken(credentials.RefreshToken)
+		if err != nil {
+			return err
+		}
+
+		credentials.AccessToken = newToken.AccessToken
+		credentials.RefreshToken = newToken.RefreshToken
+		credentials.ExpiresAt = newToken.ExpiresAt
+
+		slog.Info("token refreshed")
+	}
+
+	err := credentials.Save(db)
 	if err != nil {
 		return err
 	}

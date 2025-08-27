@@ -6,12 +6,12 @@ github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6N
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/gabrieleangeletti/stride v0.0.2 h1:0io7cBYU9mCrFMjqb74xp3HQBbm2MZH3Bqs4Q/UrXtU=
-github.com/gabrieleangeletti/stride v0.0.2/go.mod h1:z0gyPi13QjfltZkdiC53OcQ3CdOyjjNF49UDfptlyJU=
-github.com/gabrieleangeletti/stride v0.0.3 h1:Dv8qChaN6Ox8+F2C/ik3XC6dmKUK0+nPi83PEM2Q+Lw=
-github.com/gabrieleangeletti/stride v0.0.3/go.mod h1:z0gyPi13QjfltZkdiC53OcQ3CdOyjjNF49UDfptlyJU=
+github.com/gabrieleangeletti/stride v0.0.9 h1:y/iPx/0+4I7qMwGSzEa0LmmUgcCms3t+jvDjZVZ0wpY=
+github.com/gabrieleangeletti/stride v0.0.9/go.mod h1:z0gyPi13QjfltZkdiC53OcQ3CdOyjjNF49UDfptlyJU=
 github.com/go-sql-driver/mysql v1.8.1 h1:LedoTUt/eveggdHS9qUFC1EFSa8bU2+1pZjSRpvNJ1Y=
 github.com/go-sql-driver/mysql v1.8.1/go.mod h1:wEBSXgmK//2ZFJyE+qWnIsVGmvmEKlqwuVSjsCm7DZg=
+github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=
+github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
 github.com/jackc/pgpassfile v1.0.0 h1:/6Hmqy13Ss2zCq62VdNG8tM1wchn8zjSGOBJ6icpsIM=

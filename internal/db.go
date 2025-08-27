@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"database/sql"
 	"fmt"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -52,4 +53,10 @@ func DefaultDBConfig() DBConfig {
 		SSLMode:        GetSecret("POSTGRES_SSLMODE", true),
 		ChannelBinding: GetSecret("POSTGRES_CHANNEL_BINDING", true),
 	}
+}
+
+// IDB is an interface meant to represent the union type sqlx.DB | sqlx.Tx
+type IDB interface {
+	Get(dest any, query string, args ...any) error
+	NamedExec(query string, arg any) (sql.Result, error)
 }

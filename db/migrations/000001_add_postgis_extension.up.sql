@@ -1,3 +1,6 @@
+-- Add UUID extension.
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 -- Create extension postgis in its own schema.
 CREATE SCHEMA postgis;
 

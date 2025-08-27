@@ -35,21 +35,40 @@ INSERT INTO vo2.providers ("name", slug, connection_type, "description") VALUES
 ('Strava', 'strava', 'oauth2', 'Strava | Running, Cycling & Hiking App - Train, Track & Share') ON CONFLICT (slug)
 DO UPDATE SET name = EXCLUDED.name, slug = EXCLUDED.slug, connection_type = EXCLUDED.connection_type, description = EXCLUDED.description;
 
-CREATE TABLE vo2.provider_credentials (
-    id SERIAL PRIMARY KEY,
+CREATE TABLE vo2.users (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     provider_id INT NOT NULL,
     user_external_id VARCHAR(255) NOT NULL,
-    "credentials" JSONB NOT NULL,
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP,
     deleted_at TIMESTAMP,
 
-    UNIQUE (provider_id, user_external_id),
-
-    FOREIGN KEY (provider_id) REFERENCES vo2.providers (id)
+    UNIQUE(provider_id, user_external_id)
 );
 
-CREATE TRIGGER set_provider_credentials_updated_time BEFORE
+CREATE TRIGGER set_users_updated_time BEFORE
 UPDATE
-    ON vo2.provider_credentials FOR EACH ROW EXECUTE PROCEDURE vo2.set_updated_at_timestamp();
+    ON vo2.users FOR EACH ROW EXECUTE PROCEDURE vo2.set_updated_at_timestamp();
+
+CREATE TABLE vo2.provider_oauth2_credentials (
+    id SERIAL PRIMARY KEY,
+    provider_id INT NOT NULL,
+    user_id UUID NOT NULL,
+    access_token TEXT NOT NULL,
+    refresh_token TEXT NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP,
+    deleted_at TIMESTAMP,
+
+    UNIQUE (provider_id, user_id),
+
+    FOREIGN KEY (provider_id) REFERENCES vo2.providers (id),
+    FOREIGN KEY (user_id) REFERENCES vo2.users (id)
+);
+
+CREATE TRIGGER set_provider_oauth2_credentials_updated_time BEFORE
+UPDATE
+    ON vo2.provider_oauth2_credentials FOR EACH ROW EXECUTE PROCEDURE vo2.set_updated_at_timestamp();
