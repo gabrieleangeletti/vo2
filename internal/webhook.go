@@ -60,7 +60,7 @@ func verifyWebhook(db *sqlx.DB, token string) (bool, error) {
 
 	err := db.Get(&verification, "SELECT * FROM vo2.webhook_verifications WHERE token = $1", token)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return false, nil
 		}
 

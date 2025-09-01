@@ -3,6 +3,7 @@ package internal
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -94,7 +95,11 @@ func stravaAuthHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
-		tx.Commit()
+		if err := tx.Commit(); err != nil {
+			slog.Error(err.Error())
+			http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
+			return
+		}
 
 		resp := map[string]bool{"success": true}
 
@@ -160,36 +165,33 @@ func stravaWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) 
 		provider, err := GetProvider(db, "strava")
 		if err != nil {
 			slog.Error(err.Error())
-			http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
+			http.Error(w, ErrGeneric.Error(), http.StatusBadRequest)
 			return
 		}
 
 		user, err := GetUser(db, provider.ID, strconv.Itoa(event.OwnerID))
 		if err != nil {
-			if err == sql.ErrNoRows {
-				slog.Error(fmt.Sprintf("User %d not found", event.OwnerID))
-				http.Error(w, ErrGeneric.Error(), http.StatusNotFound)
+			if errors.Is(err, sql.ErrNoRows) {
+				slog.Error(fmt.Sprintf("%s: (provider: %d, userExternalID: %d)", ErrUserNotFound, provider.ID, event.OwnerID))
+				http.Error(w, ErrGeneric.Error(), http.StatusBadRequest)
 				return
 			}
 
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			slog.Error(err.Error())
+			http.Error(w, ErrGeneric.Error(), http.StatusBadRequest)
 			return
 		}
 
-		credentials, err := GetProviderOAuth2Credentials(db, provider.ID, user.ID)
+		driver := NewStravaDriver()
+
+		credentials, err := ensureValidCredentials(r.Context(), db, driver, provider, user)
 		if err != nil {
 			slog.Error(err.Error())
-			http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
+			http.Error(w, ErrGeneric.Error(), http.StatusBadRequest)
 			return
 		}
 
-		if err := refreshOAuth2CredentialsIfExpired(db, provider, credentials); err != nil {
-			slog.Error(err.Error())
-			http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		client := strava.NewClient(credentials.AccessToken)
+		client := driver.NewClient(credentials.AccessToken)
 
 		if event.ObjectType == strava.WebhookActivity {
 			if event.AspectType == strava.WebhookCreate {

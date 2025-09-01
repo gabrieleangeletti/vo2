@@ -2,9 +2,14 @@ package internal
 
 import (
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
+)
+
+var (
+	ErrUserNotFound = errors.New("user not found")
 )
 
 type User struct {

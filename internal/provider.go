@@ -1,16 +1,19 @@
 package internal
 
 import (
+	"context"
 	"database/sql"
 	"errors"
-	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 
 	"github.com/gabrieleangeletti/stride/strava"
+)
+
+const (
+	refreshTokenBuffer = 5 * time.Minute
 )
 
 var (
@@ -29,21 +32,32 @@ type OAuth2Token struct {
 	ExpiresAt    time.Time
 }
 
-type OAuth2Provider interface {
-	RefreshToken(refreshToken string) (*OAuth2Token, error)
+type ProviderDriver[C any] interface {
+	NewClient(accessToken string) C
+	RefreshToken(ctx context.Context, refreshToken string) (*OAuth2Token, error)
 }
 
-type StravaProvider struct{}
+type StravaDriver struct {
+	clientID     string
+	clientSecret string
+}
 
-func (StravaProvider) RefreshToken(refreshToken string) (*OAuth2Token, error) {
-	auth := strava.NewAuth(
-		GetSecret("STRAVA_CLIENT_ID", true),
-		GetSecret("STRAVA_CLIENT_SECRET", true),
-	)
+func NewStravaDriver() *StravaDriver {
+	return &StravaDriver{
+		clientID:     GetSecret("STRAVA_CLIENT_ID", true),
+		clientSecret: GetSecret("STRAVA_CLIENT_SECRET", true),
+	}
+}
+
+func (d *StravaDriver) NewClient(accessToken string) *strava.Client {
+	return strava.NewClient(accessToken)
+}
+
+func (d *StravaDriver) RefreshToken(ctx context.Context, refreshToken string) (*OAuth2Token, error) {
+	auth := strava.NewAuth(d.clientID, d.clientSecret)
 
 	tokenResponse, err := auth.RefreshToken(refreshToken)
 	if err != nil {
-		slog.Error("Error refreshing token", "error", err)
 		return nil, err
 	}
 
@@ -56,8 +70,41 @@ func (StravaProvider) RefreshToken(refreshToken string) (*OAuth2Token, error) {
 	return &token, nil
 }
 
-var oauth2Providers = map[string]OAuth2Provider{
-	"strava": StravaProvider{},
+func ensureValidCredentials[C any](ctx context.Context, db *sqlx.DB, driver ProviderDriver[C], provider *Provider, user *User) (*ProviderOAuth2Credentials, error) {
+	credentials, err := GetProviderOAuth2Credentials(db, provider.ID, user.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	if credentials.Expired(refreshTokenBuffer) {
+		tx, err := db.Beginx()
+		if err != nil {
+			return nil, err
+		}
+		defer tx.Rollback()
+
+		err = tx.Get(credentials, "SELECT * FROM vo2.provider_oauth2_credentials WHERE provider_id = $1 AND user_id = $2 FOR UPDATE", provider.ID, user.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		refreshed, err := refreshIfExpired(ctx, driver, credentials)
+		if err != nil {
+			return nil, err
+		}
+
+		if refreshed {
+			if err := credentials.Save(tx); err != nil {
+				return nil, err
+			}
+		}
+
+		if err := tx.Commit(); err != nil {
+			return nil, err
+		}
+	}
+
+	return credentials, nil
 }
 
 type Provider struct {
@@ -119,7 +166,7 @@ func (c *ProviderOAuth2Credentials) Save(db IDB) error {
 func GetProviderOAuth2Credentials(db *sqlx.DB, providerID int, userID uuid.UUID) (*ProviderOAuth2Credentials, error) {
 	var credentials ProviderOAuth2Credentials
 
-	err := db.Get(&credentials, "SELECT * FROM vo2.provider_oauth2_credentials WHERE provider_id = $1 AND user_id = $2", providerID, userID)
+	err := db.Get(&credentials, "SELECT * FROM vo2.provider_oauth2_credentials WHERE provider_id = $1 AND user_id = $2 FOR UPDATE", providerID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -127,31 +174,19 @@ func GetProviderOAuth2Credentials(db *sqlx.DB, providerID int, userID uuid.UUID)
 	return &credentials, nil
 }
 
-func refreshOAuth2CredentialsIfExpired(db *sqlx.DB, provider *Provider, credentials *ProviderOAuth2Credentials) error {
-	if credentials.Expired(5 * time.Minute) {
-		slog.Info("token expired, refreshing")
-
-		oauth2Provider, ok := oauth2Providers[provider.Slug]
-		if !ok {
-			return fmt.Errorf("%w: %s", ErrUnsupportedProvider, provider.Slug)
-		}
-
-		newToken, err := oauth2Provider.RefreshToken(credentials.RefreshToken)
+func refreshIfExpired[C any](ctx context.Context, provider ProviderDriver[C], credentials *ProviderOAuth2Credentials) (bool, error) {
+	if credentials.Expired(refreshTokenBuffer) {
+		newToken, err := provider.RefreshToken(ctx, credentials.RefreshToken)
 		if err != nil {
-			return err
+			return false, err
 		}
 
 		credentials.AccessToken = newToken.AccessToken
 		credentials.RefreshToken = newToken.RefreshToken
 		credentials.ExpiresAt = newToken.ExpiresAt
 
-		slog.Info("token refreshed")
+		return true, nil
 	}
 
-	err := credentials.Save(db)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return false, nil
 }
