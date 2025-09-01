@@ -3,6 +3,7 @@ package internal
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -76,6 +77,33 @@ func (l *LambdaHandler) HandleRequest(ctx context.Context, request events.APIGat
 	}
 
 	return response, nil
+}
+
+func (l *LambdaHandler) HandleSQSRequest(ctx context.Context, sqsEvent events.SQSEvent) error {
+	l.init()
+	if l.initErr != nil {
+		slog.Error("failed to initialize lambda handler: " + l.initErr.Error())
+		return l.initErr
+	}
+
+	for _, record := range sqsEvent.Records {
+		slog.Info("Processing SQS message", "messageId", record.MessageId)
+
+		var task HistoricalDataTask
+		if err := json.Unmarshal([]byte(record.Body), &task); err != nil {
+			slog.Error("Failed to unmarshal SQS message", "error", err, "messageId", record.MessageId)
+			continue
+		}
+
+		if err := l.handler.ProcessHistoricalDataTask(ctx, task); err != nil {
+			slog.Error("Failed to process historical data task", "error", err, "messageId", record.MessageId, "userId", task.UserID)
+			return err
+		}
+
+		slog.Info("Successfully processed SQS message", "messageId", record.MessageId, "userId", task.UserID)
+	}
+
+	return nil
 }
 
 func (l *LambdaHandler) convertToHTTPRequest(request events.APIGatewayV2HTTPRequest) (*http.Request, error) {

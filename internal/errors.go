@@ -1,6 +1,8 @@
 package internal
 
-import "errors"
+import (
+	"errors"
+)
 
 var (
 	ErrGeneric = errors.New("an error occurred")

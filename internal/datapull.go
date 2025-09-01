@@ -1,4 +1,4 @@
-package jobs
+package internal
 
 import (
 	"errors"
@@ -9,10 +9,9 @@ import (
 
 	"github.com/gabrieleangeletti/stride"
 	"github.com/gabrieleangeletti/stride/strava"
-	"github.com/gabrieleangeletti/vo2/internal"
 )
 
-func GetStravaActivitySummaries(credentials *internal.ProviderOAuth2Credentials, startTime, endTime time.Time) ([]strava.ActivitySummary, error) {
+func GetStravaActivitySummaries(credentials *ProviderOAuth2Credentials, startTime, endTime time.Time) ([]strava.ActivitySummary, error) {
 	client := strava.NewClient(credentials.AccessToken)
 
 	page := 1

@@ -6,6 +6,10 @@ import (
 	"runtime"
 )
 
+const (
+	fourYearsInMonths = 48
+)
+
 func OpenURLInBrowser(url string) error {
 	var cmd string
 	switch runtime.GOOS {

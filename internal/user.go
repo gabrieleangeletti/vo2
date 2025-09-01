@@ -32,6 +32,17 @@ func GetUser(db IDB, providerID int, userExternalID string) (*User, error) {
 	return &u, nil
 }
 
+func GetUserByID(db IDB, userID uuid.UUID) (*User, error) {
+	var u User
+
+	err := db.Get(&u, "SELECT * FROM vo2.users WHERE id = $1", userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &u, nil
+}
+
 func CreateUser(db IDB, providerID int, userExternalID string) (*User, error) {
 	user := &User{
 		ProviderID:     providerID,
@@ -41,6 +52,10 @@ func CreateUser(db IDB, providerID int, userExternalID string) (*User, error) {
 	_, err := db.NamedExec(`
 	INSERT INTO vo2.users (provider_id, user_external_id)
 	VALUES (:provider_id, :user_external_id)
+	ON CONFLICT
+		(provider_id, user_external_id)
+	DO NOTHING
+		
 	`, user)
 	if err != nil {
 		return nil, err

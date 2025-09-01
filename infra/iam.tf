@@ -23,3 +23,31 @@ resource "aws_iam_role_policy_attachment" "lambda_secrets_manager" {
   role       = aws_iam_role.lambda_exec.name
   policy_arn = "arn:aws:iam::aws:policy/SecretsManagerReadWrite"
 }
+
+resource "aws_iam_role_policy_attachment" "lambda_sqs_execution" {
+  role       = aws_iam_role.lambda_exec.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaSQSQueueExecutionRole"
+}
+
+data "aws_iam_policy_document" "lambda_sqs_policy" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "sqs:SendMessage",
+      "sqs:GetQueueAttributes"
+    ]
+    resources = [
+      aws_sqs_queue.historical_data_queue.arn
+    ]
+  }
+}
+
+resource "aws_iam_policy" "lambda_sqs_send" {
+  name   = "${var.lambda_function_name}-sqs-send"
+  policy = data.aws_iam_policy_document.lambda_sqs_policy.json
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_sqs_send" {
+  role       = aws_iam_role.lambda_exec.name
+  policy_arn = aws_iam_policy.lambda_sqs_send.arn
+}

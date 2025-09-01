@@ -118,7 +118,18 @@ type Provider struct {
 	DeletedAt      sql.NullTime   `json:"deletedAt" db:"deleted_at"`
 }
 
-func GetProvider(db *sqlx.DB, slug string) (*Provider, error) {
+func GetProviderByID(db *sqlx.DB, id int) (*Provider, error) {
+	var provider Provider
+
+	err := db.Get(&provider, "SELECT * FROM vo2.providers WHERE id = $1", id)
+	if err != nil {
+		return nil, err
+	}
+
+	return &provider, nil
+}
+
+func GetProviderBySlug(db *sqlx.DB, slug string) (*Provider, error) {
 	var provider Provider
 
 	err := db.Get(&provider, "SELECT * FROM vo2.providers WHERE slug = $1", slug)

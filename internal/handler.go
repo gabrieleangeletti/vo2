@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 
 	"github.com/gabrieleangeletti/stride/strava"
@@ -37,6 +39,63 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.mux.ServeHTTP(w, r)
 }
 
+func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task HistoricalDataTask) error {
+	provider, err := GetProviderByID(h.db, task.ProviderID)
+	if err != nil {
+		return fmt.Errorf("failed to get provider: %w", err)
+	}
+
+	user, err := GetUserByID(h.db, task.UserID)
+	if err != nil {
+		return fmt.Errorf("failed to get user: %w", err)
+	}
+
+	// TODO: make provider agnostic
+	driver := NewStravaDriver()
+
+	credentials, err := ensureValidCredentials(ctx, h.db, driver, provider, user)
+	if err != nil {
+		return fmt.Errorf("failed to get valid credentials: %w", err)
+	}
+
+	activities, err := GetStravaActivitySummaries(credentials, task.StartTime, task.EndTime)
+	if err != nil {
+		return fmt.Errorf("failed to get Strava activities: %w", err)
+	}
+
+	if len(activities) == 0 {
+		slog.Info("No activities found for time range", "userId", task.UserID, "startTime", task.StartTime, "endTime", task.EndTime)
+		return nil
+	}
+
+	slog.Info("Processing historical activities", "userId", task.UserID, "activityCount", len(activities), "startTime", task.StartTime, "endTime", task.EndTime)
+
+	for _, activity := range activities {
+		data, err := json.Marshal(activity)
+		if err != nil {
+			return fmt.Errorf("failed to marshal activity: %w", err)
+		}
+
+		activityData := ProviderActivityRawData{
+			ProviderID:         provider.ID,
+			UserID:             user.ID,
+			ProviderActivityID: strconv.Itoa(activity.ID),
+			StartTime:          activity.StartDate,
+			ElapsedTime:        activity.ElapsedTime,
+			Data:               data,
+		}
+
+		err = activityData.Save(h.db)
+		if err != nil {
+			return fmt.Errorf("failed to save activity: %w", err)
+		}
+	}
+
+	slog.Info("Successfully processed historical activities", "userId", task.UserID, "processedCount", len(activities))
+
+	return nil
+}
+
 func stravaAuthHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		errorCode := r.URL.Query().Get("error")
@@ -62,7 +121,7 @@ func stravaAuthHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
-		provider, err := GetProvider(db, "strava")
+		provider, err := GetProviderBySlug(db, "strava")
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -99,6 +158,13 @@ func stravaAuthHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) {
 			slog.Error(err.Error())
 			http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
 			return
+		}
+
+		if err := queueHistoricalDataTasks(r.Context(), user.ID, provider.ID, HistoricalDataTaskTypeActivity); err != nil {
+			slog.Error("Failed to queue historical data tasks", "error", err, "userId", user.ID)
+			// Queue historical data tasks synchronously to ensure completion in case we are serverless (e.g. Lambda).
+			// Don't fail the entire auth flow if queuing fails - user is still authenticated.
+			// TODO: we should rearchitect this to run async even in serverless environments.
 		}
 
 		resp := map[string]bool{"success": true}
@@ -163,7 +229,7 @@ func stravaWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) 
 			return
 		}
 
-		provider, err := GetProvider(db, "strava")
+		provider, err := GetProviderBySlug(db, "strava")
 		if err != nil {
 			slog.Error(err.Error())
 			http.Error(w, ErrGeneric.Error(), http.StatusBadRequest)
@@ -228,4 +294,40 @@ func stravaWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) 
 			}
 		}
 	}
+}
+
+func queueHistoricalDataTasks(ctx context.Context, userID uuid.UUID, providerID int, taskType HistoricalDataTaskType) error {
+	sqsClient, err := NewSQSClient()
+	if err != nil {
+		return fmt.Errorf("failed to create SQS client: %w", err)
+	}
+
+	now := time.Now()
+
+	for i := range fourYearsInMonths {
+		targetMonth := now.AddDate(0, -i, 0)
+
+		monthStart := time.Date(targetMonth.Year(), targetMonth.Month(), 1, 0, 0, 0, 0, targetMonth.Location())
+		monthEnd := monthStart.AddDate(0, 1, 0)
+
+		if i == 0 && monthEnd.After(now) {
+			monthEnd = now
+		}
+
+		task := HistoricalDataTask{
+			UserID:     userID,
+			ProviderID: providerID,
+			Type:       taskType,
+			StartTime:  monthStart,
+			EndTime:    monthEnd,
+		}
+
+		if err := sqsClient.SendHistoricalDataTask(ctx, task); err != nil {
+			return fmt.Errorf("failed to send historical data task: %w", err)
+		}
+
+		slog.Info("Queued historical data task", "userId", userID, "startTime", monthStart, "endTime", monthEnd)
+	}
+
+	return nil
 }
