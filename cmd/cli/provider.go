@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -26,6 +27,7 @@ func NewProviderCmd(cfg Config) *cobra.Command {
 
 	stravaWebhookCmd.AddCommand(stravaCreateWebhookCmd(cfg))
 	stravaWebhookCmd.AddCommand(stravaGetWebhookSubscriptionsCmd())
+	stravaWebhookCmd.AddCommand(stravaDeleteWebhookSubscriptionCmd())
 
 	return cmd
 }
@@ -42,10 +44,11 @@ func stravaAuthCmd() *cobra.Command {
 		Short: "Generate Strava authorization URL",
 		Long:  `Generate Strava authorization URL`,
 		Run: func(cmd *cobra.Command, args []string) {
-			baseURL := internal.GetSecret("API_BASE_URL", true)
-
 			clientID := internal.GetSecret("STRAVA_CLIENT_ID", true)
 			clientSecret := internal.GetSecret("STRAVA_CLIENT_SECRET", true)
+
+			baseURL := internal.GetSecret("API_BASE_URL", true)
+			baseURL = strings.TrimRight(baseURL, "/")
 
 			auth := strava.NewAuth(clientID, clientSecret)
 
@@ -62,7 +65,7 @@ func stravaAuthCmd() *cobra.Command {
 			if strings.TrimSpace(response) == "y" {
 				err := internal.OpenURLInBrowser(authURL.String())
 				if err != nil {
-					log.Fatalf("Failed to open the browser: %w", err)
+					log.Fatalf("Failed to open the browser: %v", err)
 				}
 			}
 
@@ -79,13 +82,17 @@ var stravaWebhookCmd = &cobra.Command{
 
 func stravaCreateWebhookCmd(cfg Config) *cobra.Command {
 	return &cobra.Command{
-		Use:   "create",
-		Short: "Create Strava webhook",
-		Long:  `Create Strava webhook`,
+		Use:   "create-subscription",
+		Short: "Create Strava webhook subscription",
+		Long:  `Create Strava webhook subscription`,
 		Run: func(cmd *cobra.Command, args []string) {
 			clientID := internal.GetSecret("STRAVA_CLIENT_ID", true)
 			clientSecret := internal.GetSecret("STRAVA_CLIENT_SECRET", true)
-			callbackURL := internal.GetSecret("STRAVA_WEBHOOK_CALLBACK_URL", true)
+
+			baseURL := internal.GetSecret("API_BASE_URL", true)
+			baseURL = strings.TrimRight(baseURL, "/")
+
+			callbackURL := fmt.Sprintf("%s/providers/strava/webhook", baseURL)
 
 			verification, err := internal.CreateWebhookVerification(cfg.DB)
 			if err != nil {
@@ -94,7 +101,7 @@ func stravaCreateWebhookCmd(cfg Config) *cobra.Command {
 
 			auth := strava.NewAuth(clientID, clientSecret)
 
-			resp, err := auth.RegisterWebhook(callbackURL, verification.Token)
+			resp, err := auth.RegisterWebhookSubscription(callbackURL, verification.Token)
 			if err != nil {
 				err2 := internal.DeleteWebhookVerification(cfg.DB, verification)
 				if err2 != nil {
@@ -129,6 +136,32 @@ func stravaGetWebhookSubscriptionsCmd() *cobra.Command {
 			for _, sub := range subscriptions {
 				fmt.Printf("%d: %s", sub.ID, sub.CallbackURL)
 			}
+		},
+	}
+}
+
+func stravaDeleteWebhookSubscriptionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "delete-subscription",
+		Short: "Delete Strava webhook subscription",
+		Long:  `Delete Strava webhook subscription`,
+		Run: func(cmd *cobra.Command, args []string) {
+			subscriptionID, err := strconv.Atoi(args[0])
+			if err != nil {
+				log.Fatal("Invalid subscription ID:\n", err)
+			}
+
+			clientID := internal.GetSecret("STRAVA_CLIENT_ID", true)
+			clientSecret := internal.GetSecret("STRAVA_CLIENT_SECRET", true)
+
+			auth := strava.NewAuth(clientID, clientSecret)
+
+			err = auth.DeleteWebhookSubscription(subscriptionID)
+			if err != nil {
+				log.Fatal("Error deleting webhook subscription:\n", err)
+			}
+
+			fmt.Printf("Successfully deleted webhook subscription: %d\n", subscriptionID)
 		},
 	}
 }

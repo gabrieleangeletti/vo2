@@ -42,3 +42,9 @@ bin/
 
 # AWS
 bin/lambda.zip
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl

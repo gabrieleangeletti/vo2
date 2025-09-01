@@ -4,25 +4,49 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/jmoiron/sqlx"
 )
 
 type LambdaHandler struct {
-	handler *Handler
+	db       *sqlx.DB
+	handler  *Handler
+	initOnce sync.Once
+	initErr  error
 }
 
-func NewLambdaHandler(db *sqlx.DB) *LambdaHandler {
-	return &LambdaHandler{
-		handler: NewHandler(db),
-	}
+func NewLambdaHandler() *LambdaHandler {
+	return &LambdaHandler{}
+}
+
+func (l *LambdaHandler) init() {
+	l.initOnce.Do(func() {
+		db, err := NewDB(DefaultDBConfig())
+		if err != nil {
+			l.initErr = fmt.Errorf("failed to initialize database: %w", err)
+			return
+		}
+		l.db = db
+		l.handler = NewHandler(db)
+	})
 }
 
 func (l *LambdaHandler) HandleRequest(ctx context.Context, request events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
+	l.init()
+	if l.initErr != nil {
+		slog.Error("failed to initialize lambda handler: " + l.initErr.Error())
+		return events.APIGatewayV2HTTPResponse{
+			StatusCode: http.StatusInternalServerError,
+			Body:       fmt.Sprintf("Internal Server Error: %v", l.initErr),
+		}, nil
+	}
+
 	httpRequest, err := l.convertToHTTPRequest(request)
 	if err != nil {
 		return events.APIGatewayV2HTTPResponse{

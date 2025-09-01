@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/aws/aws-lambda-go v1.49.0
-	github.com/gabrieleangeletti/stride v0.0.10
+	github.com/gabrieleangeletti/stride v0.0.12
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.7.5
 	github.com/jmoiron/sqlx v1.4.0

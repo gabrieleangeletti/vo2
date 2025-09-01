@@ -125,14 +125,15 @@ func stravaRegisterWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.R
 		}
 
 		verifyToken := r.URL.Query().Get("hub.verify_token")
-		if challenge == "" {
-			http.Error(w, "invalid hub.challenge", http.StatusBadRequest)
+		if verifyToken == "" {
+			http.Error(w, "invalid hub.verify_token", http.StatusBadRequest)
 			return
 		}
 
 		isValid, err := verifyWebhook(db, verifyToken)
 		if err != nil {
-			http.Error(w, "error while validating token: "+err.Error(), http.StatusInternalServerError)
+			slog.Error("error while verifying strava webhook token: " + err.Error())
+			http.Error(w, "error while verifying token", http.StatusInternalServerError)
 			return
 		}
 
