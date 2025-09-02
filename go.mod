@@ -7,7 +7,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.38.3
 	github.com/aws/aws-sdk-go-v2/config v1.31.6
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.3
-	github.com/gabrieleangeletti/stride v0.0.12
+	github.com/gabrieleangeletti/stride v0.0.19
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.7.5
 	github.com/jmoiron/sqlx v1.4.0

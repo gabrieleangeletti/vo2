@@ -17,6 +17,7 @@ const (
 )
 
 var (
+	ErrProviderNotFound    = errors.New("provider not found")
 	ErrUnsupportedProvider = errors.New("unsupported provider")
 )
 
@@ -118,6 +119,13 @@ type Provider struct {
 	DeletedAt      sql.NullTime   `json:"deletedAt" db:"deleted_at"`
 }
 
+// providerData is a smaller representation of a provider to be used in EnduranceOutdoorActivity and other activity data types.
+type providerData struct {
+	ID   int    `db:"id"`
+	Name string `db:"name"`
+	Slug string `db:"slug"`
+}
+
 func GetProviderByID(db *sqlx.DB, id int) (*Provider, error) {
 	var provider Provider
 
@@ -138,6 +146,20 @@ func GetProviderBySlug(db *sqlx.DB, slug string) (*Provider, error) {
 	}
 
 	return &provider, nil
+}
+
+func GetProviderMap(db *sqlx.DB) (map[int]Provider, error) {
+	var providers []Provider
+	if err := db.Select(&providers, "SELECT * FROM vo2.providers"); err != nil {
+		return nil, err
+	}
+
+	providerMap := make(map[int]Provider, len(providers))
+	for _, provider := range providers {
+		providerMap[provider.ID] = provider
+	}
+
+	return providerMap, nil
 }
 
 type ProviderOAuth2Credentials struct {

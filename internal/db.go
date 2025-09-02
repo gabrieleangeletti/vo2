@@ -60,3 +60,27 @@ type IDB interface {
 	Get(dest any, query string, args ...any) error
 	NamedExec(query string, arg any) (sql.Result, error)
 }
+
+func toNullInt16[T ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~float64](val T) sql.NullInt16 {
+	if val == 0 {
+		return sql.NullInt16{Int16: 0, Valid: false}
+	}
+
+	return sql.NullInt16{Int16: int16(val), Valid: true}
+}
+
+func toNullInt32[T ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~float64](val T) sql.NullInt32 {
+	if val == 0 {
+		return sql.NullInt32{Int32: 0, Valid: false}
+	}
+
+	return sql.NullInt32{Int32: int32(val), Valid: true}
+}
+
+func toNullString(val string) sql.NullString {
+	if val == "" {
+		return sql.NullString{String: "", Valid: false}
+	}
+
+	return sql.NullString{String: val, Valid: true}
+}

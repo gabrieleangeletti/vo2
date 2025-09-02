@@ -5,6 +5,8 @@ CREATE TABLE vo2.provider_activity_raw_data (
     provider_activity_id VARCHAR(255) NOT NULL,
     start_time TIMESTAMP NOT NULL,
     elapsed_time INT NOT NULL,
+    iana_timezone TEXT,
+    utc_offset INT,
     "data" JSONB NOT NULL,
     detailed_activity_uri TEXT,
 
@@ -15,7 +17,9 @@ CREATE TABLE vo2.provider_activity_raw_data (
     UNIQUE (provider_id, user_id, provider_activity_id),
 
     FOREIGN KEY (provider_id) REFERENCES vo2.providers (id),
-    FOREIGN KEY (user_id) REFERENCES vo2.users (id)
+    FOREIGN KEY (user_id) REFERENCES vo2.users (id),
+
+    CHECK (iana_timezone IS NOT NULL OR utc_offset IS NOT NULL)
 );
 
 CREATE TRIGGER set_provider_activity_raw_data_updated_time BEFORE

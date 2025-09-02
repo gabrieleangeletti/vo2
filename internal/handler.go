@@ -82,6 +82,8 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 			ProviderActivityID: strconv.Itoa(activity.ID),
 			StartTime:          activity.StartDate,
 			ElapsedTime:        activity.ElapsedTime,
+			IanaTimezone:       toNullString(activity.IanaTimezone()),
+			UTCOffset:          toNullInt32(activity.UtcOffset),
 			Data:               data,
 		}
 
@@ -282,6 +284,8 @@ func stravaWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) 
 					ProviderActivityID: strconv.Itoa(event.ObjectID),
 					StartTime:          stravaActivity.StartDate,
 					ElapsedTime:        stravaActivity.ElapsedTime,
+					IanaTimezone:       toNullString(stravaActivity.IanaTimezone()),
+					UTCOffset:          toNullInt32(stravaActivity.UtcOffset),
 					Data:               data,
 				}
 

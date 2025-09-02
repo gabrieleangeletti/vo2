@@ -7,7 +7,7 @@ cli: build
 	doppler -c ${VAR_$(env)_DOPPLER_CFG} run -- ./bin/cli $(args)
 
 db-migration-create:
-	doppler -c ${VAR_$(env)_DOPPLER_CFG} run -- ./db/create-migration.sh $(name)
+	./db/create-migration.sh $(name)
 
 db-migration-apply:
 	doppler -c ${VAR_$(env)_DOPPLER_CFG} run -- ./db/apply-migration.sh $(op)
