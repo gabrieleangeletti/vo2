@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -245,21 +246,43 @@ func (r *enduranceOutdoorActivityRepo) Get(ctx context.Context, id int64) (*Endu
 		a.*,
 		p.id AS "provider.id",
 		p.name AS "provider.name",
-		p.slug AS "provider.slug",
-		t.id AS "tag.id",
-		t.name AS "tag.name",
-		t.description AS "tag.description"
+		p.slug AS "provider.slug"
 	FROM vo2.activities_endurance_outdoor a
 	JOIN vo2.providers p ON a.provider_id = p.id
-	JOIN vo2.activities_endurance_outdoor_tags at ON at.activity_id = a.id
-	JOIN vo2.activity_tags t ON at.tag_id = t.id
 	WHERE a.id = $1
 	`, id)
 	if err != nil {
 		return nil, err
 	}
 
+	tags, err := r.GetTags(ctx, row.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	row.Tags = tags
+
 	return &row, nil
+}
+
+func (r *enduranceOutdoorActivityRepo) GetTags(ctx context.Context, activityID uuid.UUID) ([]*ActivityTag, error) {
+	var rows []*ActivityTag
+
+	err := r.db.SelectContext(ctx, &rows, `
+	SELECT t.* FROM
+	vo2.activities_endurance_outdoor_tags at
+	JOIN vo2.activity_tags t ON at.tag_id = t.id
+	WHERE at.activity_id = $1
+	`, activityID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return []*ActivityTag{}, nil
+		}
+
+		return nil, err
+	}
+
+	return rows, nil
 }
 
 func (r *enduranceOutdoorActivityRepo) ListByUser(ctx context.Context, providerID int, userID uuid.UUID) ([]*EnduranceOutdoorActivity, error) {
@@ -270,18 +293,22 @@ func (r *enduranceOutdoorActivityRepo) ListByUser(ctx context.Context, providerI
 		a.*,
 		p.id AS "provider.id",
 		p.name AS "provider.name",
-		p.slug AS "provider.slug",
-		t.id AS "tag.id",
-		t.name AS "tag.name",
-		t.description AS "tag.description"
+		p.slug AS "provider.slug"
 	FROM vo2.activities_endurance_outdoor a
 	JOIN vo2.providers p ON a.provider_id = p.id
-	JOIN vo2.activities_endurance_outdoor_tags at ON at.activity_id = a.id
-	JOIN vo2.activity_tags t ON at.tag_id = t.id
 	WHERE a.provider_id = $1 AND a.user_id = $2
 	`, providerID, userID)
 	if err != nil {
 		return nil, err
+	}
+
+	for i, row := range rows {
+		tags, err := r.GetTags(ctx, row.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		rows[i].Tags = tags
 	}
 
 	return rows, nil
@@ -295,10 +322,7 @@ func (r *enduranceOutdoorActivityRepo) ListByTag(ctx context.Context, providerID
 		a.*,
 		p.id AS "provider.id",
 		p.name AS "provider.name",
-		p.slug AS "provider.slug",
-		t.id AS "tag.id",
-		t.name AS "tag.name",
-		t.description AS "tag.description"
+		p.slug AS "provider.slug"
 	FROM vo2.activities_endurance_outdoor a
 	JOIN vo2.providers p ON a.provider_id = p.id
 	JOIN vo2.activities_endurance_outdoor_tags at ON at.activity_id = a.id
@@ -312,6 +336,15 @@ func (r *enduranceOutdoorActivityRepo) ListByTag(ctx context.Context, providerID
 		return nil, err
 	}
 
+	for i, row := range rows {
+		tags, err := r.GetTags(ctx, row.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		rows[i].Tags = tags
+	}
+
 	return rows, nil
 }
 
@@ -323,14 +356,9 @@ func (r *enduranceOutdoorActivityRepo) ListBySport(ctx context.Context, sport st
 		a.*,
 		p.id AS "provider.id",
 		p.name AS "provider.name",
-		p.slug AS "provider.slug",
-		t.id AS "tag.id",
-		t.name AS "tag.name",
-		t.description AS "tag.description"
+		p.slug AS "provider.slug"
 	FROM vo2.activities_endurance_outdoor a
 	JOIN vo2.providers p ON a.provider_id = p.id
-	JOIN vo2.activities_endurance_outdoor_tags at ON at.activity_id = a.id
-	JOIN vo2.activity_tags t ON at.tag_id = t.id
 	WHERE sport = $1
 	ORDER BY start_time DESC
 	LIMIT $2`
@@ -338,6 +366,15 @@ func (r *enduranceOutdoorActivityRepo) ListBySport(ctx context.Context, sport st
 	err := r.db.SelectContext(ctx, &rows, q, string(sport), limit)
 	if err != nil {
 		return nil, err
+	}
+
+	for i, row := range rows {
+		tags, err := r.GetTags(ctx, row.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		rows[i].Tags = tags
 	}
 
 	return rows, nil
