@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"os"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jmoiron/sqlx"
@@ -41,6 +42,32 @@ func NewDB(cfg Config) (*sqlx.DB, error) {
 	}
 
 	return db, nil
+}
+
+// DefaultConfig returns a default configuration for external users of the vo2 library.
+// It uses VO2_* environment variables with sensible defaults.
+func DefaultConfig() Config {
+	return Config{
+		Host:           getEnv("VO2_DB_HOST", true),
+		Port:           getEnv("VO2_DB_PORT", true),
+		User:           getEnv("VO2_DB_USER", true),
+		Password:       getEnv("VO2_DB_PASSWORD", true),
+		DB:             getEnv("VO2_DB_NAME", true),
+		SSLMode:        getEnv("VO2_DB_SSLMODE", true),
+		ChannelBinding: getEnv("VO2_DB_CHANNEL_BINDING", true),
+	}
+}
+
+func getEnv(key string, required bool) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+
+	if required {
+		panic(fmt.Sprintf("environment variable %s is required", key))
+	}
+
+	return ""
 }
 
 // IDB is an interface meant to represent the union type sqlx.DB | sqlx.Tx

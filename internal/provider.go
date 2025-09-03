@@ -17,7 +17,6 @@ const (
 	refreshTokenBuffer = 5 * time.Minute
 )
 
-
 type OAuth2Token struct {
 	AccessToken  string
 	RefreshToken string
@@ -98,7 +97,6 @@ func ensureValidCredentials[C any](ctx context.Context, db *sqlx.DB, driver Prov
 
 	return credentials, nil
 }
-
 
 type ProviderOAuth2Credentials struct {
 	ID           int          `json:"id" db:"id"`
