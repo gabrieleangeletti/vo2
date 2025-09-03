@@ -228,6 +228,26 @@ func (r *EnduranceOutdoorActivityRepo) Get(ctx context.Context, id int64) (*Endu
 	return &row, nil
 }
 
+func (r *EnduranceOutdoorActivityRepo) ListByUser(ctx context.Context, providerID int, userID uuid.UUID) (*EnduranceOutdoorActivity, error) {
+	var row EnduranceOutdoorActivity
+
+	err := r.db.GetContext(ctx, &row, `
+	SELECT
+		a.*,
+		p.id AS "provider.id",
+		p.name AS "provider.name",
+		p.slug AS "provider.slug"
+	FROM vo2.activities_endurance_outdoor a
+	JOIN vo2.providers p ON a.provider_id = p.id
+	WHERE a.provider_id = $1 AND a.user_id = $2
+	`, providerID, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &row, nil
+}
+
 func (r *EnduranceOutdoorActivityRepo) ListBySport(ctx context.Context, sport stride.Sport, limit int) ([]EnduranceOutdoorActivity, error) {
 	rows := []EnduranceOutdoorActivity{}
 
