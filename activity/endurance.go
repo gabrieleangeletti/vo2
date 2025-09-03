@@ -307,7 +307,7 @@ func (r *enduranceOutdoorActivityRepo) ListByTag(ctx context.Context, providerID
 		a.provider_id = $1 AND
 		a.user_id = $2 AND
 		t.name = $3
-	`, providerID, userID)
+	`, providerID, userID, tag)
 	if err != nil {
 		return nil, err
 	}
