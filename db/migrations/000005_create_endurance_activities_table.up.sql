@@ -3,6 +3,8 @@ CREATE TABLE vo2.activities_endurance_outdoor (
     provider_id INT NOT NULL,
     user_id UUID NOT NULL,
     provider_raw_activity_id UUID NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
     sport TEXT NOT NULL,
     start_time TIMESTAMPTZ NOT NULL,
     end_time   TIMESTAMPTZ NOT NULL,

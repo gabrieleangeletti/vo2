@@ -50,7 +50,8 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 				panic(err)
 			}
 
-			repo := activity.NewEnduranceOutdoorActivityRepo(cfg.DB)
+			activityRepo := activity.NewEnduranceOutdoorActivityRepo(cfg.DB)
+			tagRepo := activity.NewActivityTagRepo(cfg.DB)
 
 			bar := progressbar.Default(int64(len(rawActivities)))
 
@@ -60,7 +61,7 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 					panic(err)
 				}
 
-				activity, err := raw.ToEnduranceOutdoorActivity(providerMap)
+				act, err := raw.ToEnduranceOutdoorActivity(providerMap)
 				if err != nil {
 					if errors.Is(err, stride.ErrActivityIsNotOutdoorEndurance) ||
 						errors.Is(err, stride.ErrUnsupportedSportType) {
@@ -70,9 +71,21 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 					panic(err)
 				}
 
-				_, err = repo.Upsert(ctx, activity)
+				actID, err := activityRepo.Upsert(ctx, act)
 				if err != nil {
 					panic(err)
+				}
+
+				act.ID = actID
+
+				tags := act.ActivityTags()
+				if len(tags) > 0 {
+					tags, err = tagRepo.Upsert(ctx, tags)
+					if err != nil {
+						panic(err)
+					}
+
+					tagRepo.TagEnduranceOutdoorActivity(ctx, act, tags)
 				}
 			}
 

@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -55,6 +57,8 @@ func (a *ProviderActivityRawData) ToEnduranceOutdoorActivity(providerMap map[int
 			ProviderID:            a.ProviderID,
 			UserID:                a.UserID,
 			ProviderRawActivityID: a.ID,
+			Name:                  activity.Name,
+			Description:           database.ToNullString(activity.Description),
 			Sport:                 act.Sport,
 			StartTime:             a.StartTime,
 			EndTime:               a.StartTime.Add(time.Duration(a.ElapsedTime) * time.Second),
@@ -141,6 +145,8 @@ type EnduranceOutdoorActivity struct {
 	ProviderID            int            `json:"providerId" db:"provider_id"`
 	UserID                uuid.UUID      `json:"userId" db:"user_id"`
 	ProviderRawActivityID uuid.UUID      `json:"providerRawActivityId" db:"provider_raw_activity_id"`
+	Name                  string         `json:"name" db:"name"`
+	Description           sql.NullString `json:"description" db:"description"`
 	Sport                 stride.Sport   `json:"sport" db:"sport"`
 	StartTime             time.Time      `json:"startTime" db:"start_time"`
 	EndTime               time.Time      `json:"endTime" db:"end_time"`
@@ -161,6 +167,29 @@ type EnduranceOutdoorActivity struct {
 	DeletedAt             sql.NullTime   `json:"deletedAt" db:"deleted_at"`
 
 	Provider *provider.Data `json:"provider" db:"provider"`
+	Tags     []*ActivityTag `json:"tags" db:"tags"`
+}
+
+// Tags are extracted from the activity name.
+// Any string contained in square brakets, e.g. [my-tag] is considered a tag.
+// An exception is for numbers, e.g. [13], which are ignored.
+func (a *EnduranceOutdoorActivity) ActivityTags() []*ActivityTag {
+	var tags []*ActivityTag
+	re := regexp.MustCompile(`\[(.*?)\]`)
+
+	matches := re.FindAllStringSubmatch(a.Name, -1)
+	for _, match := range matches {
+		if len(match) > 1 {
+			tag := match[1]
+
+			if _, err := strconv.Atoi(tag); err == nil {
+				continue
+			}
+			tags = append(tags, &ActivityTag{Name: tag})
+		}
+	}
+
+	return tags
 }
 
 type enduranceOutdoorActivityRepo struct {
@@ -216,9 +245,14 @@ func (r *enduranceOutdoorActivityRepo) Get(ctx context.Context, id int64) (*Endu
 		a.*,
 		p.id AS "provider.id",
 		p.name AS "provider.name",
-		p.slug AS "provider.slug"
+		p.slug AS "provider.slug",
+		t.id AS "tag.id",
+		t.name AS "tag.name",
+		t.description AS "tag.description"
 	FROM vo2.activities_endurance_outdoor a
 	JOIN vo2.providers p ON a.provider_id = p.id
+	JOIN vo2.activities_endurance_outdoor_tags at ON at.activity_id = a.id
+	JOIN vo2.activity_tags t ON at.tag_id = t.id
 	WHERE a.id = $1
 	`, id)
 	if err != nil {
@@ -236,10 +270,43 @@ func (r *enduranceOutdoorActivityRepo) ListByUser(ctx context.Context, providerI
 		a.*,
 		p.id AS "provider.id",
 		p.name AS "provider.name",
-		p.slug AS "provider.slug"
+		p.slug AS "provider.slug",
+		t.id AS "tag.id",
+		t.name AS "tag.name",
+		t.description AS "tag.description"
 	FROM vo2.activities_endurance_outdoor a
 	JOIN vo2.providers p ON a.provider_id = p.id
+	JOIN vo2.activities_endurance_outdoor_tags at ON at.activity_id = a.id
+	JOIN vo2.activity_tags t ON at.tag_id = t.id
 	WHERE a.provider_id = $1 AND a.user_id = $2
+	`, providerID, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return rows, nil
+}
+
+func (r *enduranceOutdoorActivityRepo) ListByTag(ctx context.Context, providerID int, userID uuid.UUID, tag string) ([]*EnduranceOutdoorActivity, error) {
+	var rows []*EnduranceOutdoorActivity
+
+	err := r.db.SelectContext(ctx, &rows, `
+	SELECT
+		a.*,
+		p.id AS "provider.id",
+		p.name AS "provider.name",
+		p.slug AS "provider.slug",
+		t.id AS "tag.id",
+		t.name AS "tag.name",
+		t.description AS "tag.description"
+	FROM vo2.activities_endurance_outdoor a
+	JOIN vo2.providers p ON a.provider_id = p.id
+	JOIN vo2.activities_endurance_outdoor_tags at ON at.activity_id = a.id
+	JOIN vo2.activity_tags t ON at.tag_id = t.id
+	WHERE
+		a.provider_id = $1 AND
+		a.user_id = $2 AND
+		t.name = $3
 	`, providerID, userID)
 	if err != nil {
 		return nil, err
@@ -256,9 +323,14 @@ func (r *enduranceOutdoorActivityRepo) ListBySport(ctx context.Context, sport st
 		a.*,
 		p.id AS "provider.id",
 		p.name AS "provider.name",
-		p.slug AS "provider.slug"
+		p.slug AS "provider.slug",
+		t.id AS "tag.id",
+		t.name AS "tag.name",
+		t.description AS "tag.description"
 	FROM vo2.activities_endurance_outdoor a
 	JOIN vo2.providers p ON a.provider_id = p.id
+	JOIN vo2.activities_endurance_outdoor_tags at ON at.activity_id = a.id
+	JOIN vo2.activity_tags t ON at.tag_id = t.id
 	WHERE sport = $1
 	ORDER BY start_time DESC
 	LIMIT $2`
