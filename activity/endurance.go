@@ -206,30 +206,32 @@ func (r *enduranceOutdoorActivityRepo) Upsert(ctx context.Context, a *EnduranceO
 
 	err := r.db.QueryRowxContext(ctx, `
 	INSERT INTO vo2.activities_endurance_outdoor
-		(provider_id, user_id, provider_raw_activity_id, sport, start_time, end_time, iana_timezone, utc_offset, elapsed_time, moving_time, distance, elev_gain, elev_loss, avg_speed, avg_hr, max_hr, summary_polyline, summary_route)
+		(provider_id, user_id, provider_raw_activity_id, name, description, sport, start_time, end_time, iana_timezone, utc_offset, elapsed_time, moving_time, distance, elev_gain, elev_loss, avg_speed, avg_hr, max_hr, summary_polyline, summary_route)
 	VALUES
-		($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+		($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 	ON CONFLICT
 		(provider_id, user_id, provider_raw_activity_id)
 	DO UPDATE SET
-		sport = $4,
-		start_time = $5,
-		end_time = $6,
-		iana_timezone = $7,
-		utc_offset = $8,
-		elapsed_time = $9,
-		moving_time = $10,
-		distance = $11,
-		elev_gain = $12,
-		elev_loss = $13,
-		avg_speed = $14,
-		avg_hr = $15,
-		max_hr = $16,
-		summary_polyline = $17,
-		summary_route = $18
+		name = $4,
+		description = $5,
+		sport = $6,
+		start_time = $7,
+		end_time = $8,
+		iana_timezone = $9,
+		utc_offset = $10,
+		elapsed_time = $11,
+		moving_time = $12,
+		distance = $13,
+		elev_gain = $14,
+		elev_loss = $15,
+		avg_speed = $16,
+		avg_hr = $17,
+		max_hr = $18,
+		summary_polyline = $19,
+		summary_route = $20
 	RETURNING id
 	`,
-		a.ProviderID, a.UserID, a.ProviderRawActivityID, a.Sport, a.StartTime, a.EndTime, a.IanaTimezone, a.UTCOffset, a.ElapsedTime, a.MovingTime, a.Distance, a.ElevGain, a.ElevLoss, a.AvgSpeed, a.AvgHR, a.MaxHR, a.SummaryPolyline, a.SummaryRoute,
+		a.ProviderID, a.UserID, a.ProviderRawActivityID, a.Name, a.Description, a.Sport, a.StartTime, a.EndTime, a.IanaTimezone, a.UTCOffset, a.ElapsedTime, a.MovingTime, a.Distance, a.ElevGain, a.ElevLoss, a.AvgSpeed, a.AvgHR, a.MaxHR, a.SummaryPolyline, a.SummaryRoute,
 	).Scan(&id)
 	if err != nil {
 		return uuid.Nil, err
