@@ -3,29 +3,20 @@ package internal
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 
 	"github.com/gabrieleangeletti/stride/strava"
+	"github.com/gabrieleangeletti/vo2/database"
+	"github.com/gabrieleangeletti/vo2/provider"
 )
 
 const (
 	refreshTokenBuffer = 5 * time.Minute
 )
 
-var (
-	ErrProviderNotFound    = errors.New("provider not found")
-	ErrUnsupportedProvider = errors.New("unsupported provider")
-)
-
-type ConnectionType string
-
-const (
-	OAuth2ConnectionType ConnectionType = "oauth2"
-)
 
 type OAuth2Token struct {
 	AccessToken  string
@@ -71,8 +62,8 @@ func (d *StravaDriver) RefreshToken(ctx context.Context, refreshToken string) (*
 	return &token, nil
 }
 
-func ensureValidCredentials[C any](ctx context.Context, db *sqlx.DB, driver ProviderDriver[C], provider *Provider, user *User) (*ProviderOAuth2Credentials, error) {
-	credentials, err := GetProviderOAuth2Credentials(db, provider.ID, user.ID)
+func ensureValidCredentials[C any](ctx context.Context, db *sqlx.DB, driver ProviderDriver[C], prov *provider.Provider, user *User) (*ProviderOAuth2Credentials, error) {
+	credentials, err := GetProviderOAuth2Credentials(db, prov.ID, user.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +75,7 @@ func ensureValidCredentials[C any](ctx context.Context, db *sqlx.DB, driver Prov
 		}
 		defer tx.Rollback()
 
-		err = tx.Get(credentials, "SELECT * FROM vo2.provider_oauth2_credentials WHERE provider_id = $1 AND user_id = $2 FOR UPDATE", provider.ID, user.ID)
+		err = tx.Get(credentials, "SELECT * FROM vo2.provider_oauth2_credentials WHERE provider_id = $1 AND user_id = $2 FOR UPDATE", prov.ID, user.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -108,59 +99,6 @@ func ensureValidCredentials[C any](ctx context.Context, db *sqlx.DB, driver Prov
 	return credentials, nil
 }
 
-type Provider struct {
-	ID             int            `json:"id" db:"id"`
-	Name           string         `json:"name" db:"name"`
-	Slug           string         `json:"slug" db:"slug"`
-	ConnectionType ConnectionType `json:"connection_type" db:"connection_type"`
-	Description    string         `json:"description" db:"description"`
-	CreatedAt      time.Time      `json:"createdAt" db:"created_at"`
-	UpdatedAt      sql.NullTime   `json:"updatedAt" db:"updated_at"`
-	DeletedAt      sql.NullTime   `json:"deletedAt" db:"deleted_at"`
-}
-
-// providerData is a smaller representation of a provider to be used in EnduranceOutdoorActivity and other activity data types.
-type providerData struct {
-	ID   int    `db:"id"`
-	Name string `db:"name"`
-	Slug string `db:"slug"`
-}
-
-func GetProviderByID(db *sqlx.DB, id int) (*Provider, error) {
-	var provider Provider
-
-	err := db.Get(&provider, "SELECT * FROM vo2.providers WHERE id = $1", id)
-	if err != nil {
-		return nil, err
-	}
-
-	return &provider, nil
-}
-
-func GetProviderBySlug(db *sqlx.DB, slug string) (*Provider, error) {
-	var provider Provider
-
-	err := db.Get(&provider, "SELECT * FROM vo2.providers WHERE slug = $1", slug)
-	if err != nil {
-		return nil, err
-	}
-
-	return &provider, nil
-}
-
-func GetProviderMap(db *sqlx.DB) (map[int]Provider, error) {
-	var providers []Provider
-	if err := db.Select(&providers, "SELECT * FROM vo2.providers"); err != nil {
-		return nil, err
-	}
-
-	providerMap := make(map[int]Provider, len(providers))
-	for _, provider := range providers {
-		providerMap[provider.ID] = provider
-	}
-
-	return providerMap, nil
-}
 
 type ProviderOAuth2Credentials struct {
 	ID           int          `json:"id" db:"id"`
@@ -178,7 +116,7 @@ func (c *ProviderOAuth2Credentials) Expired(buffer time.Duration) bool {
 	return time.Now().Add(-buffer).After(c.ExpiresAt)
 }
 
-func (c *ProviderOAuth2Credentials) Save(db IDB) error {
+func (c *ProviderOAuth2Credentials) Save(db database.IDB) error {
 	_, err := db.NamedExec(`
 	INSERT INTO vo2.provider_oauth2_credentials
 		(provider_id, user_id, access_token, refresh_token, expires_at)

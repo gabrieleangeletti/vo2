@@ -15,6 +15,9 @@ import (
 	"github.com/jmoiron/sqlx"
 
 	"github.com/gabrieleangeletti/stride/strava"
+	activitypkg "github.com/gabrieleangeletti/vo2/activity"
+	"github.com/gabrieleangeletti/vo2/database"
+	"github.com/gabrieleangeletti/vo2/provider"
 )
 
 type Handler struct {
@@ -40,7 +43,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task HistoricalDataTask) error {
-	provider, err := GetProviderByID(h.db, task.ProviderID)
+	prov, err := provider.GetByID(h.db, task.ProviderID)
 	if err != nil {
 		return fmt.Errorf("failed to get provider: %w", err)
 	}
@@ -53,7 +56,7 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 	// TODO: make provider agnostic
 	driver := NewStravaDriver()
 
-	credentials, err := ensureValidCredentials(ctx, h.db, driver, provider, user)
+	credentials, err := ensureValidCredentials(ctx, h.db, driver, prov, user)
 	if err != nil {
 		return fmt.Errorf("failed to get valid credentials: %w", err)
 	}
@@ -76,14 +79,14 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 			return fmt.Errorf("failed to marshal activity: %w", err)
 		}
 
-		activityData := ProviderActivityRawData{
-			ProviderID:         provider.ID,
+		activityData := activitypkg.ProviderActivityRawData{
+			ProviderID:         prov.ID,
 			UserID:             user.ID,
 			ProviderActivityID: strconv.Itoa(activity.ID),
 			StartTime:          activity.StartDate,
 			ElapsedTime:        activity.ElapsedTime,
-			IanaTimezone:       toNullString(activity.IanaTimezone()),
-			UTCOffset:          toNullInt32(activity.UtcOffset),
+			IanaTimezone:       database.ToNullString(activity.IanaTimezone()),
+			UTCOffset:          database.ToNullInt32(activity.UtcOffset),
 			Data:               data,
 		}
 
@@ -123,7 +126,7 @@ func stravaAuthHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
-		provider, err := GetProviderBySlug(db, "strava")
+		prov, err := provider.GetBySlug(db, "strava")
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -136,14 +139,14 @@ func stravaAuthHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) {
 		}
 		defer tx.Rollback()
 
-		user, err := CreateUser(tx, provider.ID, strconv.Itoa(tokenResponse.Athlete.ID))
+		user, err := CreateUser(tx, prov.ID, strconv.Itoa(tokenResponse.Athlete.ID))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		credentials := ProviderOAuth2Credentials{
-			ProviderID:   provider.ID,
+			ProviderID:   prov.ID,
 			UserID:       user.ID,
 			AccessToken:  tokenResponse.AccessToken,
 			RefreshToken: tokenResponse.RefreshToken,
@@ -162,7 +165,7 @@ func stravaAuthHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
-		if err := queueHistoricalDataTasks(r.Context(), user.ID, provider.ID, HistoricalDataTaskTypeActivity); err != nil {
+		if err := queueHistoricalDataTasks(r.Context(), user.ID, prov.ID, HistoricalDataTaskTypeActivity); err != nil {
 			slog.Error("Failed to queue historical data tasks", "error", err, "userId", user.ID)
 			// Queue historical data tasks synchronously to ensure completion in case we are serverless (e.g. Lambda).
 			// Don't fail the entire auth flow if queuing fails - user is still authenticated.
@@ -231,17 +234,17 @@ func stravaWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) 
 			return
 		}
 
-		provider, err := GetProviderBySlug(db, "strava")
+		prov, err := provider.GetBySlug(db, "strava")
 		if err != nil {
 			slog.Error(err.Error())
 			http.Error(w, ErrGeneric.Error(), http.StatusBadRequest)
 			return
 		}
 
-		user, err := GetUser(db, provider.ID, strconv.Itoa(event.OwnerID))
+		user, err := GetUser(db, prov.ID, strconv.Itoa(event.OwnerID))
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				slog.Error(fmt.Sprintf("%s: (provider: %d, userExternalID: %d)", ErrUserNotFound, provider.ID, event.OwnerID))
+				slog.Error(fmt.Sprintf("%s: (provider: %d, userExternalID: %d)", ErrUserNotFound, prov.ID, event.OwnerID))
 				http.Error(w, ErrGeneric.Error(), http.StatusBadRequest)
 				return
 			}
@@ -253,7 +256,7 @@ func stravaWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) 
 
 		driver := NewStravaDriver()
 
-		credentials, err := ensureValidCredentials(r.Context(), db, driver, provider, user)
+		credentials, err := ensureValidCredentials(r.Context(), db, driver, prov, user)
 		if err != nil {
 			slog.Error(err.Error())
 			http.Error(w, ErrGeneric.Error(), http.StatusBadRequest)
@@ -278,18 +281,18 @@ func stravaWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) 
 					return
 				}
 
-				activity := ProviderActivityRawData{
-					ProviderID:         provider.ID,
+				activityData := activitypkg.ProviderActivityRawData{
+					ProviderID:         prov.ID,
 					UserID:             user.ID,
 					ProviderActivityID: strconv.Itoa(event.ObjectID),
 					StartTime:          stravaActivity.StartDate,
 					ElapsedTime:        stravaActivity.ElapsedTime,
-					IanaTimezone:       toNullString(stravaActivity.IanaTimezone()),
-					UTCOffset:          toNullInt32(stravaActivity.UtcOffset),
+					IanaTimezone:       database.ToNullString(stravaActivity.IanaTimezone()),
+					UTCOffset:          database.ToNullInt32(stravaActivity.UtcOffset),
 					Data:               data,
 				}
 
-				err = activity.Save(db)
+				err = activityData.Save(db)
 				if err != nil {
 					slog.Error(err.Error())
 					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)

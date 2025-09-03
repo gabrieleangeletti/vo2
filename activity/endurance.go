@@ -1,4 +1,4 @@
-package internal
+package activity
 
 import (
 	"context"
@@ -12,6 +12,8 @@ import (
 
 	"github.com/gabrieleangeletti/stride"
 	"github.com/gabrieleangeletti/stride/strava"
+	"github.com/gabrieleangeletti/vo2/database"
+	"github.com/gabrieleangeletti/vo2/provider"
 )
 
 type ProviderActivityRawData struct {
@@ -30,13 +32,13 @@ type ProviderActivityRawData struct {
 	DeletedAt           sql.NullTime    `json:"deletedAt" db:"deleted_at"`
 }
 
-func (a *ProviderActivityRawData) ToEnduranceOutdoorActivity(providerMap map[int]Provider) (*EnduranceOutdoorActivity, error) {
-	provider, ok := providerMap[a.ProviderID]
+func (a *ProviderActivityRawData) ToEnduranceOutdoorActivity(providerMap map[int]provider.Provider) (*EnduranceOutdoorActivity, error) {
+	prov, ok := providerMap[a.ProviderID]
 	if !ok {
-		return nil, fmt.Errorf("%w: %d", ErrProviderNotFound, a.ProviderID)
+		return nil, fmt.Errorf("%w: %d", provider.ErrProviderNotFound, a.ProviderID)
 	}
 
-	switch provider.Slug {
+	switch prov.Slug {
 	case "strava":
 		var activity strava.ActivitySummary
 		err := json.Unmarshal(a.Data, &activity)
@@ -65,35 +67,35 @@ func (a *ProviderActivityRawData) ToEnduranceOutdoorActivity(providerMap map[int
 		}
 
 		if act.ElevGain != nil {
-			enduranceOutdoorActivity.ElevGain = toNullInt32(*act.ElevGain)
+			enduranceOutdoorActivity.ElevGain = database.ToNullInt32(*act.ElevGain)
 		}
 
 		if act.ElevLoss != nil {
-			enduranceOutdoorActivity.ElevLoss = toNullInt32(*act.ElevLoss)
+			enduranceOutdoorActivity.ElevLoss = database.ToNullInt32(*act.ElevLoss)
 		}
 
 		if act.AvgHR != nil {
-			enduranceOutdoorActivity.AvgHR = toNullInt16(*act.AvgHR)
+			enduranceOutdoorActivity.AvgHR = database.ToNullInt16(*act.AvgHR)
 		}
 
 		if act.MaxHR != nil {
-			enduranceOutdoorActivity.MaxHR = toNullInt16(*act.MaxHR)
+			enduranceOutdoorActivity.MaxHR = database.ToNullInt16(*act.MaxHR)
 		}
 
 		if activity.SummaryPolyline() != "" {
-			enduranceOutdoorActivity.SummaryPolyline = toNullString(activity.SummaryPolyline())
+			enduranceOutdoorActivity.SummaryPolyline = database.ToNullString(activity.SummaryPolyline())
 
 			wkt, err := stride.PolylineToWKT(activity.SummaryPolyline())
 			if err != nil {
 				return nil, err
 			}
 
-			enduranceOutdoorActivity.SummaryRoute = toNullString(wkt)
+			enduranceOutdoorActivity.SummaryRoute = database.ToNullString(wkt)
 		}
 
 		return enduranceOutdoorActivity, nil
 	default:
-		return nil, fmt.Errorf("%w: %d", ErrUnsupportedProvider, a.ProviderID)
+		return nil, fmt.Errorf("%w: %d", provider.ErrUnsupportedProvider, a.ProviderID)
 	}
 }
 
@@ -158,7 +160,7 @@ type EnduranceOutdoorActivity struct {
 	UpdatedAt             sql.NullTime   `json:"updatedAt" db:"updated_at"`
 	DeletedAt             sql.NullTime   `json:"deletedAt" db:"deleted_at"`
 
-	Provider *providerData `json:"provider" db:"provider"`
+	Provider *provider.Data `json:"provider" db:"provider"`
 }
 
 type EnduranceOutdoorActivityRepo struct {

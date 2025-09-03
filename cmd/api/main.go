@@ -4,11 +4,12 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/gabrieleangeletti/vo2/database"
 	"github.com/gabrieleangeletti/vo2/internal"
 )
 
 func main() {
-	db, err := internal.NewDB(internal.DefaultDBConfig())
+	db, err := database.NewDB(internal.DefaultDBConfig())
 	if err != nil {
 		panic(err)
 	}

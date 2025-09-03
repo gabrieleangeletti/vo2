@@ -13,6 +13,7 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/jmoiron/sqlx"
+	"github.com/gabrieleangeletti/vo2/database"
 )
 
 type LambdaHandler struct {
@@ -28,7 +29,7 @@ func NewLambdaHandler() *LambdaHandler {
 
 func (l *LambdaHandler) init() {
 	l.initOnce.Do(func() {
-		db, err := NewDB(DefaultDBConfig())
+		db, err := database.NewDB(DefaultDBConfig())
 		if err != nil {
 			l.initErr = fmt.Errorf("failed to initialize database: %w", err)
 			return

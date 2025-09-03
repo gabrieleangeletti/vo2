@@ -10,7 +10,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/gabrieleangeletti/stride"
-	"github.com/gabrieleangeletti/vo2/internal"
+	"github.com/gabrieleangeletti/vo2/activity"
+	"github.com/gabrieleangeletti/vo2/provider"
 )
 
 func NewActivityCmd(cfg Config) *cobra.Command {
@@ -39,17 +40,17 @@ func normalizeActivityCmd(cfg Config) *cobra.Command {
 
 			ctx := context.Background()
 
-			rawActivities, err := internal.GetProviderActivityRawData(cfg.DB, providerID, userID)
+			rawActivities, err := activity.GetProviderActivityRawData(cfg.DB, providerID, userID)
 			if err != nil {
 				panic(err)
 			}
 
-			providerMap, err := internal.GetProviderMap(cfg.DB)
+			providerMap, err := provider.GetMap(cfg.DB)
 			if err != nil {
 				panic(err)
 			}
 
-			repo := internal.NewEnduranceOutdoorActivityRepo(cfg.DB)
+			repo := activity.NewEnduranceOutdoorActivityRepo(cfg.DB)
 
 			bar := progressbar.Default(int64(len(rawActivities)))
 

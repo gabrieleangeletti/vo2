@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gabrieleangeletti/vo2/database"
 )
 
 var (
@@ -21,7 +22,7 @@ type User struct {
 	DeletedAt      sql.NullTime `json:"deletedAt" db:"deleted_at"`
 }
 
-func GetUser(db IDB, providerID int, userExternalID string) (*User, error) {
+func GetUser(db database.IDB, providerID int, userExternalID string) (*User, error) {
 	var u User
 
 	err := db.Get(&u, "SELECT * FROM vo2.users WHERE provider_id = $1 AND user_external_id = $2", providerID, userExternalID)
@@ -32,7 +33,7 @@ func GetUser(db IDB, providerID int, userExternalID string) (*User, error) {
 	return &u, nil
 }
 
-func GetUserByID(db IDB, userID uuid.UUID) (*User, error) {
+func GetUserByID(db database.IDB, userID uuid.UUID) (*User, error) {
 	var u User
 
 	err := db.Get(&u, "SELECT * FROM vo2.users WHERE id = $1", userID)
@@ -43,7 +44,7 @@ func GetUserByID(db IDB, userID uuid.UUID) (*User, error) {
 	return &u, nil
 }
 
-func CreateUser(db IDB, providerID int, userExternalID string) (*User, error) {
+func CreateUser(db database.IDB, providerID int, userExternalID string) (*User, error) {
 	user := &User{
 		ProviderID:     providerID,
 		UserExternalID: userExternalID,

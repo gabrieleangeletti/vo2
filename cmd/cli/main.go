@@ -8,6 +8,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/spf13/cobra"
 
+	"github.com/gabrieleangeletti/vo2/database"
 	"github.com/gabrieleangeletti/vo2/internal"
 )
 
@@ -31,7 +32,7 @@ func NewRootCmd(cfg Config) *cobra.Command {
 func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 
-	db, err := internal.NewDB(internal.DefaultDBConfig())
+	db, err := database.NewDB(internal.DefaultDBConfig())
 	if err != nil {
 		panic(err)
 	}
