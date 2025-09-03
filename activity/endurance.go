@@ -163,15 +163,15 @@ type EnduranceOutdoorActivity struct {
 	Provider *provider.Data `json:"provider" db:"provider"`
 }
 
-type EnduranceOutdoorActivityRepo struct {
+type enduranceOutdoorActivityRepo struct {
 	db *sqlx.DB
 }
 
-func NewEnduranceOutdoorActivityRepo(db *sqlx.DB) *EnduranceOutdoorActivityRepo {
-	return &EnduranceOutdoorActivityRepo{db: db}
+func NewEnduranceOutdoorActivityRepo(db *sqlx.DB) *enduranceOutdoorActivityRepo {
+	return &enduranceOutdoorActivityRepo{db: db}
 }
 
-func (r *EnduranceOutdoorActivityRepo) Upsert(ctx context.Context, a *EnduranceOutdoorActivity) (uuid.UUID, error) {
+func (r *enduranceOutdoorActivityRepo) Upsert(ctx context.Context, a *EnduranceOutdoorActivity) (uuid.UUID, error) {
 	var id uuid.UUID
 
 	err := r.db.QueryRowxContext(ctx, `
@@ -208,7 +208,7 @@ func (r *EnduranceOutdoorActivityRepo) Upsert(ctx context.Context, a *EnduranceO
 	return id, nil
 }
 
-func (r *EnduranceOutdoorActivityRepo) Get(ctx context.Context, id int64) (*EnduranceOutdoorActivity, error) {
+func (r *enduranceOutdoorActivityRepo) Get(ctx context.Context, id int64) (*EnduranceOutdoorActivity, error) {
 	var row EnduranceOutdoorActivity
 
 	err := r.db.GetContext(ctx, &row, `
@@ -228,10 +228,10 @@ func (r *EnduranceOutdoorActivityRepo) Get(ctx context.Context, id int64) (*Endu
 	return &row, nil
 }
 
-func (r *EnduranceOutdoorActivityRepo) ListByUser(ctx context.Context, providerID int, userID uuid.UUID) (*EnduranceOutdoorActivity, error) {
-	var row EnduranceOutdoorActivity
+func (r *enduranceOutdoorActivityRepo) ListByUser(ctx context.Context, providerID int, userID uuid.UUID) ([]*EnduranceOutdoorActivity, error) {
+	var rows []*EnduranceOutdoorActivity
 
-	err := r.db.GetContext(ctx, &row, `
+	err := r.db.SelectContext(ctx, &rows, `
 	SELECT
 		a.*,
 		p.id AS "provider.id",
@@ -245,11 +245,11 @@ func (r *EnduranceOutdoorActivityRepo) ListByUser(ctx context.Context, providerI
 		return nil, err
 	}
 
-	return &row, nil
+	return rows, nil
 }
 
-func (r *EnduranceOutdoorActivityRepo) ListBySport(ctx context.Context, sport stride.Sport, limit int) ([]EnduranceOutdoorActivity, error) {
-	rows := []EnduranceOutdoorActivity{}
+func (r *enduranceOutdoorActivityRepo) ListBySport(ctx context.Context, sport stride.Sport, limit int) ([]*EnduranceOutdoorActivity, error) {
+	rows := []*EnduranceOutdoorActivity{}
 
 	q := `
 	SELECT

@@ -14,7 +14,7 @@ import (
 	"github.com/gabrieleangeletti/vo2/provider"
 )
 
-func NewActivityCmd(cfg Config) *cobra.Command {
+func newActivityCmd(cfg config) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "activity",
 		Short: "Activity cli",
@@ -26,7 +26,7 @@ func NewActivityCmd(cfg Config) *cobra.Command {
 	return cmd
 }
 
-func normalizeActivityCmd(cfg Config) *cobra.Command {
+func normalizeActivityCmd(cfg config) *cobra.Command {
 	return &cobra.Command{
 		Use:   "normalize",
 		Short: "Normalize activity data",

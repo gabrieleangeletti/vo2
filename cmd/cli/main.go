@@ -12,19 +12,19 @@ import (
 	"github.com/gabrieleangeletti/vo2/internal"
 )
 
-type Config struct {
+type config struct {
 	DB *sqlx.DB
 }
 
-func NewRootCmd(cfg Config) *cobra.Command {
+func newRootCmd(cfg config) *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:   "vo2",
 		Short: "vo2 CLI",
 		Long:  "vo2 CLI",
 	}
 
-	rootCmd.AddCommand(NewProviderCmd(cfg))
-	rootCmd.AddCommand(NewActivityCmd(cfg))
+	rootCmd.AddCommand(newProviderCmd(cfg))
+	rootCmd.AddCommand(newActivityCmd(cfg))
 
 	return rootCmd
 }
@@ -37,11 +37,11 @@ func main() {
 		panic(err)
 	}
 
-	cfg := Config{
+	cfg := config{
 		DB: db,
 	}
 
-	rootCmd := NewRootCmd(cfg)
+	rootCmd := newRootCmd(cfg)
 	err = rootCmd.Execute()
 	if err != nil {
 		log.Fatal(err)

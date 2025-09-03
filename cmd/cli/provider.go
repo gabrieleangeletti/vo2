@@ -14,7 +14,7 @@ import (
 	"github.com/gabrieleangeletti/vo2/internal"
 )
 
-func NewProviderCmd(cfg Config) *cobra.Command {
+func newProviderCmd(cfg config) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "provider",
 		Short: "Provider cli",
@@ -80,7 +80,7 @@ var stravaWebhookCmd = &cobra.Command{
 	Long:  `Strava webhook commands`,
 }
 
-func stravaCreateWebhookCmd(cfg Config) *cobra.Command {
+func stravaCreateWebhookCmd(cfg config) *cobra.Command {
 	return &cobra.Command{
 		Use:   "create-subscription",
 		Short: "Create Strava webhook subscription",
