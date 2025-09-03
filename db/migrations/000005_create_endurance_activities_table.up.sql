@@ -16,6 +16,8 @@ CREATE TABLE vo2.activities_endurance_outdoor (
     avg_speed FLOAT NOT NULL,
     avg_hr INT,
     max_hr INT,
+    summary_polyline TEXT,
+    summary_route postgis.geometry(LineString, 4326),
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP,

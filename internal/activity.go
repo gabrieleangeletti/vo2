@@ -80,6 +80,17 @@ func (a *ProviderActivityRawData) ToEnduranceOutdoorActivity(providerMap map[int
 			enduranceOutdoorActivity.MaxHR = toNullInt16(*act.MaxHR)
 		}
 
+		if activity.SummaryPolyline() != "" {
+			enduranceOutdoorActivity.SummaryPolyline = toNullString(activity.SummaryPolyline())
+
+			wkt, err := stride.PolylineToWKT(activity.SummaryPolyline())
+			if err != nil {
+				return nil, err
+			}
+
+			enduranceOutdoorActivity.SummaryRoute = toNullString(wkt)
+		}
+
 		return enduranceOutdoorActivity, nil
 	default:
 		return nil, fmt.Errorf("%w: %d", ErrUnsupportedProvider, a.ProviderID)
@@ -141,6 +152,8 @@ type EnduranceOutdoorActivity struct {
 	AvgSpeed              float64        `json:"avgSpeed" db:"avg_speed"`
 	AvgHR                 sql.NullInt16  `json:"avgHR" db:"avg_hr"`
 	MaxHR                 sql.NullInt16  `json:"maxHR" db:"max_hr"`
+	SummaryPolyline       sql.NullString `json:"summaryPolyline" db:"summary_polyline"`
+	SummaryRoute          sql.NullString `json:"summaryRoute" db:"summary_route"`
 	CreatedAt             time.Time      `json:"createdAt" db:"created_at"`
 	UpdatedAt             sql.NullTime   `json:"updatedAt" db:"updated_at"`
 	DeletedAt             sql.NullTime   `json:"deletedAt" db:"deleted_at"`
@@ -161,9 +174,9 @@ func (r *EnduranceOutdoorActivityRepo) Upsert(ctx context.Context, a *EnduranceO
 
 	err := r.db.QueryRowxContext(ctx, `
 	INSERT INTO vo2.activities_endurance_outdoor
-		(provider_id, user_id, provider_raw_activity_id, sport, start_time, end_time, iana_timezone, utc_offset, elapsed_time, moving_time, distance, elev_gain, elev_loss, avg_speed, avg_hr, max_hr)
+		(provider_id, user_id, provider_raw_activity_id, sport, start_time, end_time, iana_timezone, utc_offset, elapsed_time, moving_time, distance, elev_gain, elev_loss, avg_speed, avg_hr, max_hr, summary_polyline, summary_route)
 	VALUES
-		($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+		($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 	ON CONFLICT
 		(provider_id, user_id, provider_raw_activity_id)
 	DO UPDATE SET
@@ -179,10 +192,12 @@ func (r *EnduranceOutdoorActivityRepo) Upsert(ctx context.Context, a *EnduranceO
 		elev_loss = $13,
 		avg_speed = $14,
 		avg_hr = $15,
-		max_hr = $16
+		max_hr = $16,
+		summary_polyline = $17,
+		summary_route = $18
 	RETURNING id
 	`,
-		a.ProviderID, a.UserID, a.ProviderRawActivityID, a.Sport, a.StartTime, a.EndTime, a.IanaTimezone, a.UTCOffset, a.ElapsedTime, a.MovingTime, a.Distance, a.ElevGain, a.ElevLoss, a.AvgSpeed, a.AvgHR, a.MaxHR,
+		a.ProviderID, a.UserID, a.ProviderRawActivityID, a.Sport, a.StartTime, a.EndTime, a.IanaTimezone, a.UTCOffset, a.ElapsedTime, a.MovingTime, a.Distance, a.ElevGain, a.ElevLoss, a.AvgSpeed, a.AvgHR, a.MaxHR, a.SummaryPolyline, a.SummaryRoute,
 	).Scan(&id)
 	if err != nil {
 		return uuid.Nil, err
