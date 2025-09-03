@@ -263,7 +263,7 @@ func stravaWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) 
 		client := driver.NewClient(credentials.AccessToken)
 
 		if event.ObjectType == strava.WebhookActivity {
-			if event.AspectType == strava.WebhookCreate {
+			if event.AspectType == strava.WebhookCreate || event.AspectType == strava.WebhookUpdate {
 				stravaActivity, err := client.GetActivitySummary(event.ObjectID, false)
 				if err != nil {
 					slog.Error(err.Error())
