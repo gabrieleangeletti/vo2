@@ -226,6 +226,42 @@ func (r *enduranceOutdoorActivityRepo) Upsert(ctx context.Context, a *EnduranceO
 	return id, nil
 }
 
+func (r *enduranceOutdoorActivityRepo) UpsertTagsAndLinkActivity(ctx context.Context, a *EnduranceOutdoorActivity, tags []*ActivityTag) error {
+	if len(tags) == 0 {
+		return nil
+	}
+
+	var names []string
+	var descriptions []sql.NullString
+
+	for _, tag := range tags {
+		names = append(names, tag.Name)
+		descriptions = append(descriptions, tag.Description)
+	}
+
+	query := `
+	WITH upserted_tags AS (
+		INSERT INTO vo2.activity_tags (name, description)
+		SELECT unnest($1::text[]), unnest($2::text[])
+		ON CONFLICT (name)
+		DO UPDATE SET description = COALESCE(EXCLUDED.description, activity_tags.description)
+		RETURNING id, name
+	)
+	INSERT INTO vo2.activities_endurance_outdoor_tags (activity_id, tag_id)
+	SELECT $3, ut.id
+	FROM upserted_tags ut
+	ON CONFLICT DO NOTHING`
+
+	args := []any{names, descriptions, a.ID}
+
+	_, err := r.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (r *enduranceOutdoorActivityRepo) Get(ctx context.Context, id int64) (*EnduranceOutdoorActivity, error) {
 	var row EnduranceOutdoorActivity
 

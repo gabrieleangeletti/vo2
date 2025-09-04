@@ -14,9 +14,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 
+	"github.com/gabrieleangeletti/stride"
 	"github.com/gabrieleangeletti/stride/strava"
 	"github.com/gabrieleangeletti/vo2/activity"
-	activitypkg "github.com/gabrieleangeletti/vo2/activity"
 	"github.com/gabrieleangeletti/vo2/database"
 	"github.com/gabrieleangeletti/vo2/provider"
 )
@@ -86,15 +86,15 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 
 	slog.Info("Processing historical activities", "userId", task.UserID, "activityCount", len(activities), "startTime", task.StartTime, "endTime", task.EndTime)
 
-	for _, activity := range activities {
+	for _, act := range activities {
 		// Note: this is the most basic way to handle rate limits. We basically go until we hit the limit.
 		// Then we manually retry and ignore the activities that were already processed.
 		// TODO: implement proper solution.
-		if _, ok := existingActivitiesMap[activity.ID]; ok {
+		if _, ok := existingActivitiesMap[act.ID]; ok {
 			continue
 		}
 
-		detailedActivity, err := client.GetActivity(activity.ID, false)
+		detailedActivity, err := client.GetActivity(act.ID, false)
 		if err != nil {
 			return fmt.Errorf("failed to get detailed activity: %w", err)
 		}
@@ -104,12 +104,12 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 			return fmt.Errorf("failed to marshal activity: %w", err)
 		}
 
-		activityData := activitypkg.ProviderActivityRawData{
+		activityData := activity.ProviderActivityRawData{
 			ProviderID:         prov.ID,
 			UserID:             task.UserID,
 			ProviderActivityID: strconv.FormatInt(detailedActivity.ID, 10),
-			StartTime:          activity.StartDate,
-			ElapsedTime:        activity.ElapsedTime,
+			StartTime:          act.StartDate,
+			ElapsedTime:        act.ElapsedTime,
 			IanaTimezone:       database.ToNullString(detailedActivity.IanaTimezone()),
 			Data:               data,
 		}
@@ -250,6 +250,8 @@ func stravaWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) 
 	return func(w http.ResponseWriter, r *http.Request) {
 		slog.Info("Received Strava Webhook")
 
+		ctx := context.Background()
+
 		var event strava.WebhookEvent
 		err := json.NewDecoder(r.Body).Decode(&event)
 		if err != nil {
@@ -262,6 +264,13 @@ func stravaWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) 
 		if err != nil {
 			slog.Error(err.Error())
 			http.Error(w, ErrGeneric.Error(), http.StatusBadRequest)
+			return
+		}
+
+		providerMap, err := provider.GetMap(db)
+		if err != nil {
+			slog.Error(err.Error())
+			http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
 			return
 		}
 
@@ -291,6 +300,8 @@ func stravaWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) 
 
 		if event.ObjectType == strava.WebhookActivity {
 			if event.AspectType == strava.WebhookCreate || event.AspectType == strava.WebhookUpdate {
+				activityRepo := activity.NewEnduranceOutdoorActivityRepo(db)
+
 				stravaActivity, err := client.GetActivity(event.ObjectID, false)
 				if err != nil {
 					slog.Error(err.Error())
@@ -305,7 +316,7 @@ func stravaWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) 
 					return
 				}
 
-				activityData := activitypkg.ProviderActivityRawData{
+				activityData := activity.ProviderActivityRawData{
 					ProviderID:         prov.ID,
 					UserID:             user.ID,
 					ProviderActivityID: strconv.FormatInt(event.ObjectID, 10),
@@ -320,6 +331,33 @@ func stravaWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) 
 					slog.Error(err.Error())
 					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
 					return
+				}
+
+				act, err := activityData.ToEnduranceOutdoorActivity(providerMap)
+				if err != nil {
+					if !(errors.Is(err, stride.ErrActivityIsNotOutdoorEndurance) || errors.Is(err, stride.ErrUnsupportedSportType)) {
+						slog.Error(err.Error())
+						http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
+						return
+					}
+				}
+
+				actID, err := activityRepo.Upsert(ctx, act)
+				if err != nil {
+					slog.Error(err.Error())
+					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
+				}
+
+				act.ID = actID
+
+				tags := act.ExtractActivityTags()
+
+				if len(tags) > 0 {
+					err = activityRepo.UpsertTagsAndLinkActivity(ctx, act, tags)
+					if err != nil {
+						slog.Error(err.Error())
+						http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
+					}
 				}
 			}
 		}

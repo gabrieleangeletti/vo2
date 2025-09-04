@@ -51,7 +51,6 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 			}
 
 			activityRepo := activity.NewEnduranceOutdoorActivityRepo(cfg.DB)
-			tagRepo := activity.NewActivityTagRepo(cfg.DB)
 
 			bar := progressbar.Default(int64(len(rawActivities)))
 
@@ -80,12 +79,10 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 
 				tags := act.ExtractActivityTags()
 				if len(tags) > 0 {
-					tags, err = tagRepo.Upsert(ctx, tags)
+					err = activityRepo.UpsertTagsAndLinkActivity(ctx, act, tags)
 					if err != nil {
 						panic(err)
 					}
-
-					tagRepo.TagEnduranceOutdoorActivity(ctx, act, tags)
 				}
 			}
 
