@@ -10,12 +10,12 @@ import (
 )
 
 type ActivityTag struct {
-	ID          int          `json:"id" db:"id"`
-	Name        string       `json:"name" db:"name"`
-	Description string       `json:"description" db:"description"`
-	CreatedAt   time.Time    `json:"createdAt" db:"created_at"`
-	UpdatedAt   sql.NullTime `json:"updatedAt" db:"updated_at"`
-	DeletedAt   sql.NullTime `json:"deletedAt" db:"deleted_at"`
+	ID          int            `json:"id" db:"id"`
+	Name        string         `json:"name" db:"name"`
+	Description sql.NullString `json:"description" db:"description"`
+	CreatedAt   time.Time      `json:"createdAt" db:"created_at"`
+	UpdatedAt   sql.NullTime   `json:"updatedAt" db:"updated_at"`
+	DeletedAt   sql.NullTime   `json:"deletedAt" db:"deleted_at"`
 }
 
 type enduranceOutdoorActivityTag struct {
@@ -39,7 +39,7 @@ func (r *activityTagRepo) Upsert(ctx context.Context, tags []*ActivityTag) ([]*A
 		(:name, :description)
 	ON CONFLICT (name)
 	DO UPDATE SET
-		description = EXCLUDED.description`
+		description = COALESCE(EXCLUDED.description, activity_tags.description)`
 
 	_, err := r.db.NamedExecContext(ctx, query, tags)
 	if err != nil {

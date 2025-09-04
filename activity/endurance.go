@@ -48,6 +48,15 @@ func (a *ProviderActivityRawData) ToEnduranceOutdoorActivity(providerMap map[int
 			return nil, err
 		}
 
+		isEndurance, err := act.IsEnduranceOutdoorActivity()
+		if err != nil {
+			return nil, err
+		}
+
+		if !isEndurance {
+			return nil, stride.ErrActivityIsNotOutdoorEndurance
+		}
+
 		sport, err := act.Sport()
 		if err != nil {
 			return nil, err
@@ -160,7 +169,7 @@ type EnduranceOutdoorActivity struct {
 func (a *EnduranceOutdoorActivity) ExtractActivityTags() []*ActivityTag {
 	var tags []*ActivityTag
 
-	re := regexp.MustCompile(`#[\p{L}\d_]+`)
+	re := regexp.MustCompile(`#[\p{L}\d_-]+`)
 	hashTags := re.FindAllString(a.Description.String, -1)
 
 	for _, hashTag := range hashTags {
@@ -309,7 +318,7 @@ func (r *enduranceOutdoorActivityRepo) ListByTag(ctx context.Context, providerID
 	WHERE
 		a.provider_id = $1 AND
 		a.user_id = $2 AND
-		t.name = $3
+		lower(t.name) = lower($3)
 	`, providerID, userID, tag)
 	if err != nil {
 		return nil, err
