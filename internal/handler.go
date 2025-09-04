@@ -15,6 +15,7 @@ import (
 	"github.com/jmoiron/sqlx"
 
 	"github.com/gabrieleangeletti/stride/strava"
+	"github.com/gabrieleangeletti/vo2/activity"
 	activitypkg "github.com/gabrieleangeletti/vo2/activity"
 	"github.com/gabrieleangeletti/vo2/database"
 	"github.com/gabrieleangeletti/vo2/provider"
@@ -48,20 +49,17 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 		return fmt.Errorf("failed to get provider: %w", err)
 	}
 
-	user, err := GetUserByID(h.db, task.UserID)
-	if err != nil {
-		return fmt.Errorf("failed to get user: %w", err)
-	}
-
 	// TODO: make provider agnostic
 	driver := NewStravaDriver()
 
-	credentials, err := ensureValidCredentials(ctx, h.db, driver, prov, user)
+	credentials, err := ensureValidCredentials(ctx, h.db, driver, prov, task.UserID)
 	if err != nil {
 		return fmt.Errorf("failed to get valid credentials: %w", err)
 	}
 
-	activities, err := GetStravaActivitySummaries(credentials, task.StartTime, task.EndTime)
+	client := driver.NewClient(credentials.AccessToken)
+
+	activities, err := GetStravaActivitySummaries(client, task.StartTime, task.EndTime)
 	if err != nil {
 		return fmt.Errorf("failed to get Strava activities: %w", err)
 	}
@@ -71,22 +69,48 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 		return nil
 	}
 
+	existingActivities, err := activity.GetProviderActivityRawData(h.db, prov.ID, task.UserID)
+	if err != nil {
+		return fmt.Errorf("failed to get existing activities: %w", err)
+	}
+
+	existingActivitiesMap := make(map[int64]struct{})
+	for _, a := range existingActivities {
+		id, err := strconv.ParseInt(a.ProviderActivityID, 10, 64)
+		if err != nil {
+			return fmt.Errorf("failed to parse activity ID: %w", err)
+		}
+
+		existingActivitiesMap[id] = struct{}{}
+	}
+
 	slog.Info("Processing historical activities", "userId", task.UserID, "activityCount", len(activities), "startTime", task.StartTime, "endTime", task.EndTime)
 
 	for _, activity := range activities {
-		data, err := json.Marshal(activity)
+		// Note: this is the most basic way to handle rate limits. We basically go until we hit the limit.
+		// Then we manually retry and ignore the activities that were already processed.
+		// TODO: implement proper solution.
+		if _, ok := existingActivitiesMap[activity.ID]; ok {
+			continue
+		}
+
+		detailedActivity, err := client.GetActivity(activity.ID, false)
+		if err != nil {
+			return fmt.Errorf("failed to get detailed activity: %w", err)
+		}
+
+		data, err := json.Marshal(detailedActivity)
 		if err != nil {
 			return fmt.Errorf("failed to marshal activity: %w", err)
 		}
 
 		activityData := activitypkg.ProviderActivityRawData{
 			ProviderID:         prov.ID,
-			UserID:             user.ID,
-			ProviderActivityID: strconv.Itoa(activity.ID),
+			UserID:             task.UserID,
+			ProviderActivityID: strconv.FormatInt(detailedActivity.ID, 10),
 			StartTime:          activity.StartDate,
 			ElapsedTime:        activity.ElapsedTime,
-			IanaTimezone:       database.ToNullString(activity.IanaTimezone()),
-			UTCOffset:          database.ToNullInt32(activity.UtcOffset),
+			IanaTimezone:       database.ToNullString(detailedActivity.IanaTimezone()),
 			Data:               data,
 		}
 
@@ -256,7 +280,7 @@ func stravaWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) 
 
 		driver := NewStravaDriver()
 
-		credentials, err := ensureValidCredentials(r.Context(), db, driver, prov, user)
+		credentials, err := ensureValidCredentials(r.Context(), db, driver, prov, user.ID)
 		if err != nil {
 			slog.Error(err.Error())
 			http.Error(w, ErrGeneric.Error(), http.StatusBadRequest)
@@ -267,7 +291,7 @@ func stravaWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) 
 
 		if event.ObjectType == strava.WebhookActivity {
 			if event.AspectType == strava.WebhookCreate || event.AspectType == strava.WebhookUpdate {
-				stravaActivity, err := client.GetActivitySummary(event.ObjectID, false)
+				stravaActivity, err := client.GetActivity(event.ObjectID, false)
 				if err != nil {
 					slog.Error(err.Error())
 					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
@@ -284,11 +308,10 @@ func stravaWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) 
 				activityData := activitypkg.ProviderActivityRawData{
 					ProviderID:         prov.ID,
 					UserID:             user.ID,
-					ProviderActivityID: strconv.Itoa(event.ObjectID),
+					ProviderActivityID: strconv.FormatInt(event.ObjectID, 10),
 					StartTime:          stravaActivity.StartDate,
 					ElapsedTime:        stravaActivity.ElapsedTime,
 					IanaTimezone:       database.ToNullString(stravaActivity.IanaTimezone()),
-					UTCOffset:          database.ToNullInt32(stravaActivity.UtcOffset),
 					Data:               data,
 				}
 

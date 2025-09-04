@@ -11,9 +11,7 @@ import (
 	"github.com/gabrieleangeletti/stride/strava"
 )
 
-func GetStravaActivitySummaries(credentials *ProviderOAuth2Credentials, startTime, endTime time.Time) ([]strava.ActivitySummary, error) {
-	client := strava.NewClient(credentials.AccessToken)
-
+func GetStravaActivitySummaries(client *strava.Client, startTime, endTime time.Time) ([]strava.ActivitySummary, error) {
 	page := 1
 
 	var activities []strava.ActivitySummary

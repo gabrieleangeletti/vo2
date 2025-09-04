@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -43,13 +42,13 @@ func (a *ProviderActivityRawData) ToEnduranceOutdoorActivity(providerMap map[int
 
 	switch prov.Slug {
 	case "strava":
-		var activity strava.ActivitySummary
-		err := json.Unmarshal(a.Data, &activity)
+		var act strava.ActivityDetailed
+		err := json.Unmarshal(a.Data, &act)
 		if err != nil {
 			return nil, err
 		}
 
-		act, err := activity.ToEnduranceActivity()
+		sport, err := act.Sport()
 		if err != nil {
 			return nil, err
 		}
@@ -58,9 +57,9 @@ func (a *ProviderActivityRawData) ToEnduranceOutdoorActivity(providerMap map[int
 			ProviderID:            a.ProviderID,
 			UserID:                a.UserID,
 			ProviderRawActivityID: a.ID,
-			Name:                  activity.Name,
-			Description:           database.ToNullString(activity.Description),
-			Sport:                 act.Sport,
+			Name:                  act.Name,
+			Description:           database.ToNullString(act.Description),
+			Sport:                 sport,
 			StartTime:             a.StartTime,
 			EndTime:               a.StartTime.Add(time.Duration(a.ElapsedTime) * time.Second),
 			IanaTimezone:          a.IanaTimezone,
@@ -68,29 +67,15 @@ func (a *ProviderActivityRawData) ToEnduranceOutdoorActivity(providerMap map[int
 			ElapsedTime:           act.ElapsedTime,
 			MovingTime:            act.MovingTime,
 			Distance:              int(act.Distance),
-			AvgSpeed:              act.AvgSpeed,
+			AvgSpeed:              act.AverageSpeed,
+			ElevGain:              database.ToNullInt32(act.TotalElevationGain),
 		}
 
-		if act.ElevGain != nil {
-			enduranceOutdoorActivity.ElevGain = database.ToNullInt32(*act.ElevGain)
-		}
+		summaryPolyline := act.SummaryPolyline()
+		if summaryPolyline != "" {
+			enduranceOutdoorActivity.SummaryPolyline = database.ToNullString(summaryPolyline)
 
-		if act.ElevLoss != nil {
-			enduranceOutdoorActivity.ElevLoss = database.ToNullInt32(*act.ElevLoss)
-		}
-
-		if act.AvgHR != nil {
-			enduranceOutdoorActivity.AvgHR = database.ToNullInt16(*act.AvgHR)
-		}
-
-		if act.MaxHR != nil {
-			enduranceOutdoorActivity.MaxHR = database.ToNullInt16(*act.MaxHR)
-		}
-
-		if activity.SummaryPolyline() != "" {
-			enduranceOutdoorActivity.SummaryPolyline = database.ToNullString(activity.SummaryPolyline())
-
-			wkt, err := stride.PolylineToWKT(activity.SummaryPolyline())
+			wkt, err := stride.PolylineToWKT(summaryPolyline)
 			if err != nil {
 				return nil, err
 			}
@@ -171,23 +156,15 @@ type EnduranceOutdoorActivity struct {
 	Tags     []*ActivityTag `json:"tags" db:"tags"`
 }
 
-// Tags are extracted from the activity name.
-// Any string contained in square brakets, e.g. [my-tag] is considered a tag.
-// An exception is for numbers, e.g. [13], which are ignored.
-func (a *EnduranceOutdoorActivity) ActivityTags() []*ActivityTag {
+// ExtractActivityTags extracts hashtags from the activity description.
+func (a *EnduranceOutdoorActivity) ExtractActivityTags() []*ActivityTag {
 	var tags []*ActivityTag
-	re := regexp.MustCompile(`\[(.*?)\]`)
 
-	matches := re.FindAllStringSubmatch(a.Name, -1)
-	for _, match := range matches {
-		if len(match) > 1 {
-			tag := match[1]
+	re := regexp.MustCompile(`#[\p{L}\d_]+`)
+	hashTags := re.FindAllString(a.Description.String, -1)
 
-			if _, err := strconv.Atoi(tag); err == nil {
-				continue
-			}
-			tags = append(tags, &ActivityTag{Name: tag})
-		}
+	for _, hashTag := range hashTags {
+		tags = append(tags, &ActivityTag{Name: hashTag[1:]})
 	}
 
 	return tags

@@ -78,7 +78,7 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 
 				act.ID = actID
 
-				tags := act.ActivityTags()
+				tags := act.ExtractActivityTags()
 				if len(tags) > 0 {
 					tags, err = tagRepo.Upsert(ctx, tags)
 					if err != nil {
