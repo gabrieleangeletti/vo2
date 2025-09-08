@@ -339,6 +339,13 @@ func stravaWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) 
 					return
 				}
 
+				streams, err := client.GetActivityStreams(stravaActivity.ID)
+				if err != nil {
+					slog.Error(err.Error())
+					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
+					return
+				}
+
 				data, err := json.Marshal(stravaActivity)
 				if err != nil {
 					slog.Error(err.Error())
@@ -363,6 +370,13 @@ func stravaWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) 
 					return
 				}
 
+				err = UploadRawActivityDetails(ctx, db, prov.Slug, &activityData, streams)
+				if err != nil {
+					slog.Error(err.Error())
+					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
+					return
+				}
+
 				act, err := activityData.ToEnduranceOutdoorActivity(providerMap)
 				if err != nil {
 					if !(errors.Is(err, stride.ErrActivityIsNotOutdoorEndurance) || errors.Is(err, stride.ErrUnsupportedSportType)) {
@@ -376,6 +390,7 @@ func stravaWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) 
 				if err != nil {
 					slog.Error(err.Error())
 					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
+					return
 				}
 
 				act.ID = actID
@@ -387,6 +402,7 @@ func stravaWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) 
 					if err != nil {
 						slog.Error(err.Error())
 						http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
+						return
 					}
 				}
 			}
