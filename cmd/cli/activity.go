@@ -1,8 +1,10 @@
 package main
 
 import (
-	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 
 	"github.com/google/uuid"
@@ -10,7 +12,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/gabrieleangeletti/stride"
+	"github.com/gabrieleangeletti/stride/strava"
 	"github.com/gabrieleangeletti/vo2/activity"
+	"github.com/gabrieleangeletti/vo2/internal"
 	"github.com/gabrieleangeletti/vo2/provider"
 )
 
@@ -36,9 +40,10 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 			if err != nil {
 				panic(err)
 			}
+
 			userID := uuid.MustParse(args[1])
 
-			ctx := context.Background()
+			ctx := cmd.Context()
 
 			rawActivities, err := activity.GetProviderActivityRawData(cfg.DB, providerID, userID)
 			if err != nil {
@@ -76,6 +81,62 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 				}
 
 				act.ID = actID
+
+				if raw.DetailedActivityURI.Valid {
+					data, err := internal.DownloadObject(ctx, raw.DetailedActivityURI.String)
+					if err != nil {
+						panic(err)
+					}
+
+					var streams strava.ActivityStream
+					err = json.Unmarshal(data, &streams)
+					if err != nil {
+						panic(err)
+					}
+
+					var stravaActivity strava.ActivityDetailed
+					err = json.Unmarshal(raw.Data, &stravaActivity)
+					if err != nil {
+						panic(err)
+					}
+
+					strideActivity, err := stravaActivity.ToActivity()
+					if err != nil {
+						panic(err)
+					}
+
+					ts, err := streams.ToTimeseries(raw.StartTime)
+					if err != nil {
+						panic(err)
+					}
+
+					sport, err := stravaActivity.Sport()
+					if err != nil {
+						panic(err)
+					}
+
+					gpxData, err := stride.CreateGPXFileInMemory(strideActivity, ts, sport)
+					if err != nil {
+						panic(err)
+					}
+
+					objectKey := fmt.Sprintf("activity_details/%s/gpx/%s.gpx", "strava", act.ID)
+
+					res, err := internal.UploadObject(ctx, objectKey, gpxData, nil)
+					if err != nil {
+						panic(fmt.Errorf("Error uploading activity streams: %w", err))
+					}
+
+					act.GpxFileURI = sql.NullString{
+						String: res.Location,
+						Valid:  true,
+					}
+
+					_, err = activityRepo.Upsert(ctx, act)
+					if err != nil {
+						panic(err)
+					}
+				}
 
 				tags := act.ExtractActivityTags()
 				if len(tags) > 0 {

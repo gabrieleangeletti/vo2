@@ -30,7 +30,7 @@ tf-plan:
 	cd infra && terraform plan -var="doppler_workspace_id=$$(doppler settings --json | jq -r .id)" -var="doppler_secret_name=$$(doppler -c prd secrets get AWS_DOPPLER_SECRET_NAME --plain)"
 
 tf-apply: build-lambda
-	cd infra && terraform apply -auto-approve -var="doppler_workspace_id=$$(doppler settings --json | jq -r .id)" -var="doppler_secret_name=$$(doppler -c prd secrets get AWS_DOPPLER_SECRET_NAME --plain)"
+	cd infra && terraform apply -auto-approve -var="doppler_workspace_id=$$(doppler settings --json | jq -r .id)" -var="doppler_secret_name=$$(doppler -c prd secrets get AWS_DOPPLER_SECRET_NAME --plain)" -var="s3_bucket_name=$$(doppler -c prd secrets get AWS_S3_BUCKET_NAME --plain)"
 	doppler -c prd secrets set API_BASE_URL=$$(cd infra && terraform output -raw lambda_function_url)
 
 run-api:

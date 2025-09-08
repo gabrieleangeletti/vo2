@@ -55,3 +55,7 @@ resource "aws_lambda_event_source_mapping" "historical_data_queue_trigger" {
   batch_size       = 3
 }
 
+# S3 bucket for storing raw activity data
+resource "aws_s3_bucket" "data" {
+  bucket = var.s3_bucket_name
+}

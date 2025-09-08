@@ -157,6 +157,8 @@ type EnduranceOutdoorActivity struct {
 	MaxHR                 sql.NullInt16  `json:"maxHR" db:"max_hr"`
 	SummaryPolyline       sql.NullString `json:"summaryPolyline" db:"summary_polyline"`
 	SummaryRoute          sql.NullString `json:"summaryRoute" db:"summary_route"`
+	GpxFileURI            sql.NullString `json:"gpxFileURI" db:"gpx_file_uri"`
+	FitFileURI            sql.NullString `json:"fitFileURI" db:"fit_file_uri"`
 	CreatedAt             time.Time      `json:"createdAt" db:"created_at"`
 	UpdatedAt             sql.NullTime   `json:"updatedAt" db:"updated_at"`
 	DeletedAt             sql.NullTime   `json:"deletedAt" db:"deleted_at"`
@@ -192,9 +194,9 @@ func (r *enduranceOutdoorActivityRepo) Upsert(ctx context.Context, a *EnduranceO
 
 	err := r.db.QueryRowxContext(ctx, `
 	INSERT INTO vo2.activities_endurance_outdoor
-		(provider_id, user_id, provider_raw_activity_id, name, description, sport, start_time, end_time, iana_timezone, utc_offset, elapsed_time, moving_time, distance, elev_gain, elev_loss, avg_speed, avg_hr, max_hr, summary_polyline, summary_route)
+		(provider_id, user_id, provider_raw_activity_id, name, description, sport, start_time, end_time, iana_timezone, utc_offset, elapsed_time, moving_time, distance, elev_gain, elev_loss, avg_speed, avg_hr, max_hr, summary_polyline, summary_route, gpx_file_uri, fit_file_uri)
 	VALUES
-		($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+		($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
 	ON CONFLICT
 		(provider_id, user_id, provider_raw_activity_id)
 	DO UPDATE SET
@@ -214,10 +216,12 @@ func (r *enduranceOutdoorActivityRepo) Upsert(ctx context.Context, a *EnduranceO
 		avg_hr = $17,
 		max_hr = $18,
 		summary_polyline = $19,
-		summary_route = $20
+		summary_route = $20,
+		gpx_file_uri = $21,
+		fit_file_uri = $22
 	RETURNING id
 	`,
-		a.ProviderID, a.UserID, a.ProviderRawActivityID, a.Name, a.Description, a.Sport, a.StartTime, a.EndTime, a.IanaTimezone, a.UTCOffset, a.ElapsedTime, a.MovingTime, a.Distance, a.ElevGain, a.ElevLoss, a.AvgSpeed, a.AvgHR, a.MaxHR, a.SummaryPolyline, a.SummaryRoute,
+		a.ProviderID, a.UserID, a.ProviderRawActivityID, a.Name, a.Description, a.Sport, a.StartTime, a.EndTime, a.IanaTimezone, a.UTCOffset, a.ElapsedTime, a.MovingTime, a.Distance, a.ElevGain, a.ElevLoss, a.AvgSpeed, a.AvgHR, a.MaxHR, a.SummaryPolyline, a.SummaryRoute, a.GpxFileURI, a.FitFileURI,
 	).Scan(&id)
 	if err != nil {
 		return uuid.Nil, err

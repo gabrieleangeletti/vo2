@@ -21,3 +21,8 @@ variable "doppler_secret_name" {
   type        = string
   sensitive   = true
 }
+
+variable "s3_bucket_name" {
+  description = "The name of the S3 bucket."
+  type        = string
+}

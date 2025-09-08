@@ -74,14 +74,14 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 		return fmt.Errorf("failed to get existing activities: %w", err)
 	}
 
-	existingActivitiesMap := make(map[int64]struct{})
+	existingActivitiesMap := make(map[int64]*activity.ProviderActivityRawData)
 	for _, a := range existingActivities {
 		id, err := strconv.ParseInt(a.ProviderActivityID, 10, 64)
 		if err != nil {
 			return fmt.Errorf("failed to parse activity ID: %w", err)
 		}
 
-		existingActivitiesMap[id] = struct{}{}
+		existingActivitiesMap[id] = a
 	}
 
 	slog.Info("Processing historical activities", "userId", task.UserID, "activityCount", len(activities), "startTime", task.StartTime, "endTime", task.EndTime)
@@ -90,7 +90,25 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 		// Note: this is the most basic way to handle rate limits. We basically go until we hit the limit.
 		// Then we manually retry and ignore the activities that were already processed.
 		// TODO: implement proper solution.
-		if _, ok := existingActivitiesMap[act.ID]; ok {
+		if existing, ok := existingActivitiesMap[act.ID]; ok {
+			if !existing.DetailedActivityURI.Valid {
+				var detailedActivity strava.ActivityDetailed
+				err := json.Unmarshal(existing.Data, &detailedActivity)
+				if err != nil {
+					return fmt.Errorf("failed to unmarshal activity: %w", err)
+				}
+
+				streams, err := client.GetActivityStreams(detailedActivity.ID)
+				if err != nil {
+					return fmt.Errorf("failed to get activity streams: %w", err)
+				}
+
+				err = UploadRawActivityDetails(ctx, h.db, prov.Slug, existing, streams)
+				if err != nil {
+					return fmt.Errorf("failed to upload raw activity details: %w", err)
+				}
+			}
+
 			continue
 		}
 
@@ -104,7 +122,7 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 			return fmt.Errorf("failed to marshal activity: %w", err)
 		}
 
-		activityData := activity.ProviderActivityRawData{
+		activityRaw := activity.ProviderActivityRawData{
 			ProviderID:         prov.ID,
 			UserID:             task.UserID,
 			ProviderActivityID: strconv.FormatInt(detailedActivity.ID, 10),
@@ -114,10 +132,22 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 			Data:               data,
 		}
 
-		err = activityData.Save(h.db)
+		err = activityRaw.Save(h.db)
 		if err != nil {
 			return fmt.Errorf("failed to save activity: %w", err)
 		}
+
+		streams, err := client.GetActivityStreams(detailedActivity.ID)
+		if err != nil {
+			return fmt.Errorf("failed to get activity streams: %w", err)
+		}
+
+		err = UploadRawActivityDetails(ctx, h.db, prov.Slug, &activityRaw, streams)
+		if err != nil {
+			return fmt.Errorf("failed to upload raw activity details: %w", err)
+		}
+
+		return nil
 	}
 
 	slog.Info("Successfully processed historical activities", "userId", task.UserID, "processedCount", len(activities))

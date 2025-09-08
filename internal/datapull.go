@@ -1,14 +1,20 @@
 package internal
 
 import (
+	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
+	"github.com/jmoiron/sqlx"
 	"github.com/schollz/progressbar/v3"
 
 	"github.com/gabrieleangeletti/stride"
 	"github.com/gabrieleangeletti/stride/strava"
+	"github.com/gabrieleangeletti/vo2/activity"
 )
 
 func GetStravaActivitySummaries(client *strava.Client, startTime, endTime time.Time) ([]strava.ActivitySummary, error) {
@@ -56,4 +62,30 @@ func GetStravaActivitySummaries(client *strava.Client, startTime, endTime time.T
 	}
 
 	return activities, nil
+}
+
+func UploadRawActivityDetails(ctx context.Context, db *sqlx.DB, provider string, activityRaw *activity.ProviderActivityRawData, streams any) error {
+	streamData, err := json.Marshal(streams)
+	if err != nil {
+		return fmt.Errorf("failed to marshal activity streams: %w", err)
+	}
+
+	objectKey := fmt.Sprintf("activity_details/%s/raw/%s.json", provider, activityRaw.ID)
+
+	res, err := UploadObject(ctx, objectKey, streamData, nil)
+	if err != nil {
+		return fmt.Errorf("Error uploading activity streams: %w", err)
+	}
+
+	activityRaw.DetailedActivityURI = sql.NullString{
+		String: res.Location,
+		Valid:  true,
+	}
+
+	err = activityRaw.Save(db)
+	if err != nil {
+		return fmt.Errorf("Error saving activity: %w", err)
+	}
+
+	return nil
 }

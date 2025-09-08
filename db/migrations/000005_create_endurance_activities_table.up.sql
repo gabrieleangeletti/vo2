@@ -20,6 +20,8 @@ CREATE TABLE vo2.activities_endurance_outdoor (
     max_hr INT,
     summary_polyline TEXT,
     summary_route postgis.geometry(LineString, 4326),
+    gpx_file_uri TEXT,
+    fit_file_uri TEXT,
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP,
