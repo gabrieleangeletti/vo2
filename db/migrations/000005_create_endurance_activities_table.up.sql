@@ -39,3 +39,25 @@ CREATE TABLE vo2.activities_endurance_outdoor (
 CREATE TRIGGER set_activities_endurance_outdoor_updated_time BEFORE
 UPDATE
     ON vo2.activities_endurance_outdoor FOR EACH ROW EXECUTE PROCEDURE vo2.set_updated_at_timestamp();
+
+COMMENT ON TABLE vo2.activities_endurance_outdoor IS 'Endurance activities performed outdoors';
+
+COMMENT ON COLUMN vo2.activities_endurance_outdoor.name IS 'Name of the activity, as given by the original provider.';
+COMMENT ON COLUMN vo2.activities_endurance_outdoor.description IS 'Description of the activity, as given by the original provider.';
+COMMENT ON COLUMN vo2.activities_endurance_outdoor.sport IS 'Sport type of the activity. Endurance outdoor activities are: running, cycling, gravel cycling, hiking, and trail running.';
+COMMENT ON COLUMN vo2.activities_endurance_outdoor.start_time IS 'Start time of the activity. Measured in UTC.';
+COMMENT ON COLUMN vo2.activities_endurance_outdoor.end_time IS 'End time of the activity. Measured in UTC.';
+COMMENT ON COLUMN vo2.activities_endurance_outdoor.iana_timezone IS 'IANA timezone of the activity.';
+COMMENT ON COLUMN vo2.activities_endurance_outdoor.utc_offset IS 'UTC offset of the activity. Measured in seconds.';
+COMMENT ON COLUMN vo2.activities_endurance_outdoor.elapsed_time IS 'The overall elapsed time of the activity. Measured in seconds.';
+COMMENT ON COLUMN vo2.activities_endurance_outdoor.moving_time IS 'The overall moving time of the activity. Measured in seconds.';
+COMMENT ON COLUMN vo2.activities_endurance_outdoor.distance IS 'Distance of the activity. Measured in meters.';
+COMMENT ON COLUMN vo2.activities_endurance_outdoor.elev_gain IS 'Elevation gain of the activity. Measured in meters.';
+COMMENT ON COLUMN vo2.activities_endurance_outdoor.elev_loss IS 'Elevation loss of the activity. Measured in meters.';
+COMMENT ON COLUMN vo2.activities_endurance_outdoor.avg_speed IS 'Average speed of the activity. Measured in meters per second.';
+COMMENT ON COLUMN vo2.activities_endurance_outdoor.avg_hr IS 'Average heart rate during the activity. Measured in beats per minute.';
+COMMENT ON COLUMN vo2.activities_endurance_outdoor.max_hr IS 'Maximum heart rate during the activity. Measured in beats per minute.';
+COMMENT ON COLUMN vo2.activities_endurance_outdoor.summary_polyline IS 'Summary polyline of the activity. Encoded in Google Polyline format.';
+COMMENT ON COLUMN vo2.activities_endurance_outdoor.summary_route IS 'Summary postgis geometry route of the activity.';
+COMMENT ON COLUMN vo2.activities_endurance_outdoor.gpx_file_uri IS 'URI of the GPX file of the activity.';
+COMMENT ON COLUMN vo2.activities_endurance_outdoor.fit_file_uri IS 'URI of the FIT file of the activity.';
