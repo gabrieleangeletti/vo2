@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/schollz/progressbar/v3"
@@ -130,6 +132,41 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 					act.GpxFileURI = sql.NullString{
 						String: res.Location,
 						Valid:  true,
+					}
+
+					avgHR, err := stride.CalculateAverageHeartRate(ts, stride.AvgHeartRateAnalysisConfig{
+						Method:       stride.HeartRateMethodTimeWeighted,
+						ExcludeZeros: true,
+						MinValidRate: 40,
+						MaxValidRate: 220,
+						MaxHeartRate: 193,
+					})
+					if err != nil {
+						if !errors.Is(err, stride.ErrNoValidData) {
+							fmt.Printf("Error: %v\n", err)
+							return
+						}
+					}
+
+					if avgHR > 0 {
+						act.AvgHR = sql.NullInt16{Valid: true, Int16: int16(math.Round(avgHR))}
+					}
+
+					thirtySec := 30 * time.Second
+
+					maxHR, err := stride.CalculateMaxHeartRate(ts, stride.MaxHeartRateAnalysisConfig{
+						Method:         stride.MaxHeartRateMethodRollingWindow,
+						WindowDuration: &thirtySec,
+					})
+					if err != nil {
+						if !errors.Is(err, stride.ErrNoValidData) {
+							fmt.Printf("Error: %v\n", err)
+							return
+						}
+					}
+
+					if maxHR > 0 {
+						act.MaxHR = sql.NullInt16{Valid: true, Int16: int16(maxHR)}
 					}
 
 					_, err = activityRepo.Upsert(ctx, act)
