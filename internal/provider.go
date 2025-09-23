@@ -9,7 +9,6 @@ import (
 	"github.com/jmoiron/sqlx"
 
 	"github.com/gabrieleangeletti/stride/strava"
-	"github.com/gabrieleangeletti/vo2/database"
 	"github.com/gabrieleangeletti/vo2/provider"
 )
 
@@ -85,7 +84,7 @@ func ensureValidCredentials[C any](ctx context.Context, db *sqlx.DB, driver Prov
 		}
 
 		if refreshed {
-			if err := credentials.Save(tx); err != nil {
+			if err := credentials.SaveTx(ctx, tx); err != nil {
 				return nil, err
 			}
 		}
@@ -114,17 +113,35 @@ func (c *ProviderOAuth2Credentials) Expired(buffer time.Duration) bool {
 	return time.Now().Add(-buffer).After(c.ExpiresAt)
 }
 
-func (c *ProviderOAuth2Credentials) Save(db database.IDB) error {
-	_, err := db.NamedExec(`
+func (c *ProviderOAuth2Credentials) Save(ctx context.Context, db *sqlx.DB) error {
+	_, err := db.ExecContext(ctx, `
 	INSERT INTO vo2.provider_oauth2_credentials
 		(provider_id, user_id, access_token, refresh_token, expires_at)
 	VALUES
-		(:provider_id, :user_id, :access_token, :refresh_token, :expires_at)
+		($1, $2, $3, $4, $5)
 	ON CONFLICT
 		(provider_id, user_id)
 	DO UPDATE SET
-		access_token = :access_token, refresh_token = :refresh_token, expires_at = :expires_at
-	`, c)
+		access_token = $3, refresh_token = $4, expires_at = $5
+	`, c.ProviderID, c.UserID, c.AccessToken, c.RefreshToken, c.ExpiresAt)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *ProviderOAuth2Credentials) SaveTx(ctx context.Context, tx *sqlx.Tx) error {
+	_, err := tx.ExecContext(ctx, `
+	INSERT INTO vo2.provider_oauth2_credentials
+		(provider_id, user_id, access_token, refresh_token, expires_at)
+	VALUES
+		($1, $2, $3, $4, $5)
+	ON CONFLICT
+		(provider_id, user_id)
+	DO UPDATE SET
+		access_token = $3, refresh_token = $4, expires_at = $5
+	`, c.ProviderID, c.UserID, c.AccessToken, c.RefreshToken, c.ExpiresAt)
 	if err != nil {
 		return err
 	}
@@ -135,7 +152,7 @@ func (c *ProviderOAuth2Credentials) Save(db database.IDB) error {
 func GetProviderOAuth2Credentials(db *sqlx.DB, providerID int, userID uuid.UUID) (*ProviderOAuth2Credentials, error) {
 	var credentials ProviderOAuth2Credentials
 
-	err := db.Get(&credentials, "SELECT * FROM vo2.provider_oauth2_credentials WHERE provider_id = $1 AND user_id = $2 FOR UPDATE", providerID, userID)
+	err := db.Get(&credentials, "SELECT * FROM vo2.provider_oauth2_credentials WHERE provider_id = $1 AND user_id = $2", providerID, userID)
 	if err != nil {
 		return nil, err
 	}

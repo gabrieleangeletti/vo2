@@ -86,6 +86,8 @@ func stravaCreateWebhookCmd(cfg config) *cobra.Command {
 		Short: "Create Strava webhook subscription",
 		Long:  `Create Strava webhook subscription`,
 		Run: func(cmd *cobra.Command, args []string) {
+			ctx := cmd.Context()
+
 			clientID := internal.GetSecret("STRAVA_CLIENT_ID", true)
 			clientSecret := internal.GetSecret("STRAVA_CLIENT_SECRET", true)
 
@@ -94,7 +96,7 @@ func stravaCreateWebhookCmd(cfg config) *cobra.Command {
 
 			callbackURL := fmt.Sprintf("%s/providers/strava/webhook", baseURL)
 
-			verification, err := internal.CreateWebhookVerification(cfg.DB)
+			verification, err := internal.CreateWebhookVerification(ctx, cfg.DB)
 			if err != nil {
 				log.Fatal("Failed to create verification token:\n", err)
 			}
@@ -103,7 +105,7 @@ func stravaCreateWebhookCmd(cfg config) *cobra.Command {
 
 			resp, err := auth.RegisterWebhookSubscription(callbackURL, verification.Token)
 			if err != nil {
-				err2 := internal.DeleteWebhookVerification(cfg.DB, verification)
+				err2 := internal.DeleteWebhookVerification(ctx, cfg.DB, verification)
 				if err2 != nil {
 					log.Fatal("Error deleting webhook verification:\n", err2)
 				}

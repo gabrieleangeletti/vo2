@@ -82,7 +82,7 @@ func UploadRawActivityDetails(ctx context.Context, db *sqlx.DB, provider string,
 		Valid:  true,
 	}
 
-	err = activityRaw.Save(db)
+	err = activityRaw.Save(ctx, db)
 	if err != nil {
 		return fmt.Errorf("Error saving activity: %w", err)
 	}

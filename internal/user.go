@@ -1,13 +1,13 @@
 package internal
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"time"
 
 	"github.com/google/uuid"
-
-	"github.com/gabrieleangeletti/vo2/database"
+	"github.com/jmoiron/sqlx"
 )
 
 var (
@@ -23,7 +23,7 @@ type User struct {
 	DeletedAt      sql.NullTime `json:"deletedAt" db:"deleted_at"`
 }
 
-func GetUser(db database.IDB, providerID int, userExternalID string) (*User, error) {
+func GetUser(db *sqlx.DB, providerID int, userExternalID string) (*User, error) {
 	var u User
 
 	err := db.Get(&u, "SELECT * FROM vo2.users WHERE provider_id = $1 AND user_external_id = $2", providerID, userExternalID)
@@ -34,10 +34,10 @@ func GetUser(db database.IDB, providerID int, userExternalID string) (*User, err
 	return &u, nil
 }
 
-func GetUserByID(db database.IDB, userID uuid.UUID) (*User, error) {
+func GetUserByID(ctx context.Context, db *sqlx.DB, userID uuid.UUID) (*User, error) {
 	var u User
 
-	err := db.Get(&u, "SELECT * FROM vo2.users WHERE id = $1", userID)
+	err := db.GetContext(ctx, &u, "SELECT * FROM vo2.users WHERE id = $1", userID)
 	if err != nil {
 		return nil, err
 	}
@@ -45,25 +45,24 @@ func GetUserByID(db database.IDB, userID uuid.UUID) (*User, error) {
 	return &u, nil
 }
 
-func CreateUser(db database.IDB, providerID int, userExternalID string) (*User, error) {
+func CreateUser(tx *sqlx.Tx, providerID int, userExternalID string) (*User, error) {
 	user := &User{
 		ProviderID:     providerID,
 		UserExternalID: userExternalID,
 	}
 
-	_, err := db.NamedExec(`
+	_, err := tx.Exec(`
 	INSERT INTO vo2.users (provider_id, user_external_id)
-	VALUES (:provider_id, :user_external_id)
+	VALUES ($1, $2)
 	ON CONFLICT
 		(provider_id, user_external_id)
 	DO NOTHING
-		
-	`, user)
+	`, user.ProviderID, user.UserExternalID)
 	if err != nil {
 		return nil, err
 	}
 
-	user, err = GetUser(db, providerID, userExternalID)
+	err = tx.Get(user, "SELECT * FROM vo2.users WHERE provider_id = $1 AND user_external_id = $2", providerID, userExternalID)
 	if err != nil {
 		return nil, err
 	}

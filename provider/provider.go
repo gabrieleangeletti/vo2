@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"time"
@@ -58,13 +59,14 @@ func GetBySlug(db *sqlx.DB, slug string) (*Provider, error) {
 	return &provider, nil
 }
 
-func GetMap(db *sqlx.DB) (map[int]Provider, error) {
+func GetMap(ctx context.Context, db *sqlx.DB) (map[int]Provider, error) {
 	var providers []Provider
-	if err := db.Select(&providers, "SELECT * FROM vo2.providers"); err != nil {
+	err := db.SelectContext(ctx, &providers, "SELECT * FROM vo2.providers")
+	if err != nil {
 		return nil, err
 	}
 
-	providerMap := make(map[int]Provider, len(providers))
+	providerMap := make(map[int]Provider)
 	for _, provider := range providers {
 		providerMap[provider.ID] = provider
 	}

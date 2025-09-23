@@ -1,10 +1,10 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"strconv"
 	"time"
@@ -40,31 +40,31 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 		Run: func(cmd *cobra.Command, args []string) {
 			providerID, err := strconv.Atoi(args[0])
 			if err != nil {
-				panic(err)
+				log.Fatal(err)
 			}
 
 			userID := uuid.MustParse(args[1])
 
 			ctx := cmd.Context()
 
-			rawActivities, err := activity.GetProviderActivityRawData(cfg.DB, providerID, userID)
+			rawActivities, err := activity.GetProviderActivityRawData(ctx, cfg.DB, providerID, userID)
 			if err != nil {
-				panic(err)
+				log.Fatal(err)
 			}
 
-			providerMap, err := provider.GetMap(cfg.DB)
+			providerMap, err := provider.GetMap(ctx, cfg.DB)
 			if err != nil {
-				panic(err)
+				log.Fatal(err)
 			}
 
-			activityRepo := activity.NewEnduranceOutdoorActivityRepo(cfg.DB)
+			store := internal.NewStore(cfg.DB)
 
 			bar := progressbar.Default(int64(len(rawActivities)))
 
 			for _, raw := range rawActivities {
 				err := bar.Add(1)
 				if err != nil {
-					panic(err)
+					log.Fatal(err)
 				}
 
 				act, err := raw.ToEnduranceOutdoorActivity(providerMap)
@@ -74,65 +74,60 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 						continue
 					}
 
-					panic(err)
+					log.Fatal(err)
 				}
 
-				actID, err := activityRepo.Upsert(ctx, act)
+				act, err = store.UpsertActivityEnduranceOutdoor(ctx, act)
 				if err != nil {
-					panic(err)
+					log.Fatal(err)
 				}
-
-				act.ID = actID
 
 				if raw.DetailedActivityURI.Valid {
 					data, err := internal.DownloadObject(ctx, raw.DetailedActivityURI.String)
 					if err != nil {
-						panic(err)
+						log.Fatal(err)
 					}
 
 					var streams strava.ActivityStream
 					err = json.Unmarshal(data, &streams)
 					if err != nil {
-						panic(err)
+						log.Fatal(err)
 					}
 
 					var stravaActivity strava.ActivityDetailed
 					err = json.Unmarshal(raw.Data, &stravaActivity)
 					if err != nil {
-						panic(err)
+						log.Fatal(err)
 					}
 
 					strideActivity, err := stravaActivity.ToActivity()
 					if err != nil {
-						panic(err)
+						log.Fatal(err)
 					}
 
 					ts, err := streams.ToTimeseries(raw.StartTime)
 					if err != nil {
-						panic(err)
+						log.Fatal(err)
 					}
 
 					sport, err := stravaActivity.Sport()
 					if err != nil {
-						panic(err)
+						log.Fatal(err)
 					}
 
 					gpxData, err := stride.CreateGPXFileInMemory(strideActivity, ts, sport)
 					if err != nil {
-						panic(err)
+						log.Fatal(err)
 					}
 
 					objectKey := fmt.Sprintf("activity_details/%s/gpx/%s.gpx", "strava", act.ID)
 
 					res, err := internal.UploadObject(ctx, objectKey, gpxData, nil)
 					if err != nil {
-						panic(fmt.Errorf("Error uploading activity streams: %w", err))
+						log.Fatal(fmt.Errorf("Error uploading activity streams: %w", err))
 					}
 
-					act.GpxFileURI = sql.NullString{
-						String: res.Location,
-						Valid:  true,
-					}
+					act.GpxFileURI = res.Location
 
 					avgHR, err := stride.CalculateAverageHeartRate(ts, stride.AvgHeartRateAnalysisConfig{
 						Method:       stride.HeartRateMethodTimeWeighted,
@@ -149,7 +144,8 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 					}
 
 					if avgHR > 0 {
-						act.AvgHR = sql.NullInt16{Valid: true, Int16: int16(math.Round(avgHR))}
+						avgValue := int16(math.Round(avgHR))
+						act.AvgHR = avgValue
 					}
 
 					thirtySec := 30 * time.Second
@@ -166,27 +162,28 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 					}
 
 					if maxHR > 0 {
-						act.MaxHR = sql.NullInt16{Valid: true, Int16: int16(maxHR)}
+						maxValue := int16(maxHR)
+						act.MaxHR = maxValue
 					}
 
-					_, err = activityRepo.Upsert(ctx, act)
+					_, err = store.UpsertActivityEnduranceOutdoor(ctx, act)
 					if err != nil {
-						panic(err)
+						log.Fatal(err)
 					}
 				}
 
 				tags := act.ExtractActivityTags()
 				if len(tags) > 0 {
-					err = activityRepo.UpsertTagsAndLinkActivity(ctx, act, tags)
+					err = store.UpsertTagsAndLinkActivity(ctx, act, tags)
 					if err != nil {
-						panic(err)
+						log.Fatal(err)
 					}
 				}
 			}
 
 			err = bar.Finish()
 			if err != nil {
-				panic(err)
+				log.Fatal(err)
 			}
 		},
 	}

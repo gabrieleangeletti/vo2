@@ -70,12 +70,6 @@ func getEnv(key string, required bool) string {
 	return ""
 }
 
-// IDB is an interface meant to represent the union type sqlx.DB | sqlx.Tx
-type IDB interface {
-	Get(dest any, query string, args ...any) error
-	NamedExec(query string, arg any) (sql.Result, error)
-}
-
 func ToNullInt16[T ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~float64](val T) sql.NullInt16 {
 	if val == 0 {
 		return sql.NullInt16{Int16: 0, Valid: false}
@@ -90,6 +84,14 @@ func ToNullInt32[T ~int | ~int8 | ~int16 | ~int32 | ~int64 | ~float64](val T) sq
 	}
 
 	return sql.NullInt32{Int32: int32(val), Valid: true}
+}
+
+func ToNullInt32FromPtr[T ~int32](val *T) sql.NullInt32 {
+	if val == nil || *val == 0 {
+		return sql.NullInt32{Int32: 0, Valid: false}
+	}
+
+	return sql.NullInt32{Int32: int32(*val), Valid: true}
 }
 
 func ToNullString(val string) sql.NullString {

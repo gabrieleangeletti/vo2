@@ -47,14 +47,6 @@ github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSs
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/dvyukov/go-fuzz v0.0.0-20200318091601-be3528f3a813/go.mod h1:11Gm+ccJnvAhCNLlf5+cS9KjtbaD5I5zaZpFMsTHWTw=
-github.com/gabrieleangeletti/stride v0.0.26 h1:Vrtc1L2DeDuEhCpz0PJLpdZ4ACVq7l89UUy4PdaGY/0=
-github.com/gabrieleangeletti/stride v0.0.26/go.mod h1:upZkvokKjzvXAtcnrrKcp2oKMzfYiQarI8agakh0lhk=
-github.com/gabrieleangeletti/stride v0.0.27 h1:MTNyqw9+zhRv9VyP3fsXKJP4afyrqfvuRxIY/hpI5kw=
-github.com/gabrieleangeletti/stride v0.0.27/go.mod h1:upZkvokKjzvXAtcnrrKcp2oKMzfYiQarI8agakh0lhk=
-github.com/gabrieleangeletti/stride v0.0.28 h1:6A+yyekTBjv/vvfF4koV52yjcH5t9GBqxE2hye/+R4w=
-github.com/gabrieleangeletti/stride v0.0.28/go.mod h1:upZkvokKjzvXAtcnrrKcp2oKMzfYiQarI8agakh0lhk=
-github.com/gabrieleangeletti/stride v0.0.29 h1:d+SZ02jAIz9uvXO9RPUGAhV0DrEJ7Q4pZVQ2n+FX6k8=
-github.com/gabrieleangeletti/stride v0.0.29/go.mod h1:XabWoFHRXz3CNj+5zokiqT6TGRnefR/KmpBSgXsljZc=
 github.com/gabrieleangeletti/stride v0.0.30 h1:I6HqSc3Bm4xeVdwZAes20z6RRtWnNM1C4JGKtWcBa5Q=
 github.com/gabrieleangeletti/stride v0.0.30/go.mod h1:XabWoFHRXz3CNj+5zokiqT6TGRnefR/KmpBSgXsljZc=
 github.com/go-sql-driver/mysql v1.8.1 h1:LedoTUt/eveggdHS9qUFC1EFSa8bU2+1pZjSRpvNJ1Y=
@@ -69,8 +61,8 @@ github.com/jackc/pgpassfile v1.0.0 h1:/6Hmqy13Ss2zCq62VdNG8tM1wchn8zjSGOBJ6icpsI
 github.com/jackc/pgpassfile v1.0.0/go.mod h1:CEx0iS5ambNFdcRtxPj5JhEz+xB6uRky5eyVu/W2HEg=
 github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 h1:iCEnooe7UlwOQYpKFhBabPMi4aNAfoODPEFNiAnClxo=
 github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761/go.mod h1:5TJZWKEWniPve33vlWYSoGYefn3gLQRzjfDlhSJ9ZKM=
-github.com/jackc/pgx/v5 v5.7.5 h1:JHGfMnQY+IEtGM63d+NGMjoRpysB2JBwDr5fsngwmJs=
-github.com/jackc/pgx/v5 v5.7.5/go.mod h1:aruU7o91Tc2q2cFp5h4uP3f6ztExVpyVv88Xl/8Vl8M=
+github.com/jackc/pgx/v5 v5.7.6 h1:rWQc5FwZSPX58r1OQmkuaNicxdmExaEz5A2DO2hUuTk=
+github.com/jackc/pgx/v5 v5.7.6/go.mod h1:aruU7o91Tc2q2cFp5h4uP3f6ztExVpyVv88Xl/8Vl8M=
 github.com/jackc/puddle/v2 v2.2.2 h1:PR8nw+E/1w0GLuRFSmiioY6UooMp6KJv0/61nB7icHo=
 github.com/jackc/puddle/v2 v2.2.2/go.mod h1:vriiEXHvEE654aYKXXjOvZM39qJ0q+azkZFrfEOc3H4=
 github.com/jmoiron/sqlx v1.4.0 h1:1PLqN7S1UYp5t4SrVVnt4nUVNemrDAtxlulVe+Qgm3o=

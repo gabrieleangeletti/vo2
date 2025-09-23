@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
@@ -21,7 +22,7 @@ type WebhookVerification struct {
 	ExpiresAt time.Time `json:"expiresAt" db:"expires_at"`
 }
 
-func CreateWebhookVerification(db *sqlx.DB) (*WebhookVerification, error) {
+func CreateWebhookVerification(ctx context.Context, db *sqlx.DB) (*WebhookVerification, error) {
 	token, err := generateVerificationToken()
 	if err != nil {
 		return nil, err
@@ -35,10 +36,10 @@ func CreateWebhookVerification(db *sqlx.DB) (*WebhookVerification, error) {
 		ExpiresAt: now.Add(5 * time.Minute),
 	}
 
-	_, err = db.NamedExec(`
+	_, err = db.ExecContext(ctx, `
 	INSERT INTO vo2.webhook_verifications (token, created_at, expires_at)
-	VALUES (:token, :created_at, :expires_at)
-	`, verification)
+	VALUES ($1, $2, $3)
+	`, verification.Token, verification.CreatedAt, verification.ExpiresAt)
 	if err != nil {
 		return nil, err
 	}
@@ -46,8 +47,8 @@ func CreateWebhookVerification(db *sqlx.DB) (*WebhookVerification, error) {
 	return verification, nil
 }
 
-func DeleteWebhookVerification(db *sqlx.DB, v *WebhookVerification) error {
-	_, err := db.Exec("DELETE FROM vo2.webhook_verifications WHERE token = $1", v.Token)
+func DeleteWebhookVerification(ctx context.Context, db *sqlx.DB, v *WebhookVerification) error {
+	_, err := db.ExecContext(ctx, "DELETE FROM vo2.webhook_verifications WHERE token = $1", v.Token)
 	if err != nil {
 		return err
 	}
@@ -55,10 +56,10 @@ func DeleteWebhookVerification(db *sqlx.DB, v *WebhookVerification) error {
 	return nil
 }
 
-func verifyWebhook(db *sqlx.DB, token string) (bool, error) {
+func verifyWebhook(ctx context.Context, db *sqlx.DB, token string) (bool, error) {
 	var verification WebhookVerification
 
-	err := db.Get(&verification, "SELECT * FROM vo2.webhook_verifications WHERE token = $1", token)
+	err := db.GetContext(ctx, &verification, "SELECT * FROM vo2.webhook_verifications WHERE token = $1", token)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, nil
@@ -71,7 +72,7 @@ func verifyWebhook(db *sqlx.DB, token string) (bool, error) {
 		return false, ErrWebhookVerificationExpired
 	}
 
-	_, err = db.Exec("DELETE FROM vo2.webhook_verifications WHERE token = $1", token)
+	_, err = db.ExecContext(ctx, "DELETE FROM vo2.webhook_verifications WHERE token = $1", verification.Token)
 	if err != nil {
 		return false, err
 	}

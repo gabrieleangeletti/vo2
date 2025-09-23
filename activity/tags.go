@@ -2,19 +2,30 @@ package activity
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
+	"github.com/gabrieleangeletti/vo2/internal/generated/models"
 	"github.com/jmoiron/sqlx"
 )
 
 type ActivityTag struct {
-	ID          int            `json:"id" db:"id"`
-	Name        string         `json:"name" db:"name"`
-	Description sql.NullString `json:"description" db:"description"`
-	CreatedAt   time.Time      `json:"createdAt" db:"created_at"`
-	UpdatedAt   sql.NullTime   `json:"updatedAt" db:"updated_at"`
-	DeletedAt   sql.NullTime   `json:"deletedAt" db:"deleted_at"`
+	ID          int       `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description,omitzero"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt,omitzero"`
+	DeletedAt   time.Time `json:"deletedAt,omitzero"`
+}
+
+func NewActivityTag(t models.Vo2ActivityTag) *ActivityTag {
+	return &ActivityTag{
+		ID:          int(t.ID),
+		Name:        t.Name,
+		Description: t.Description.String,
+		CreatedAt:   t.CreatedAt.Time,
+		UpdatedAt:   t.UpdatedAt.Time,
+		DeletedAt:   t.DeletedAt.Time,
+	}
 }
 
 type activityTagRepo struct {

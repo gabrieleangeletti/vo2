@@ -22,19 +22,21 @@ import (
 )
 
 type Handler struct {
-	db  *sqlx.DB
-	mux *http.ServeMux
+	db    *sqlx.DB
+	mux   *http.ServeMux
+	store Store
 }
 
 func NewHandler(db *sqlx.DB) *Handler {
 	h := &Handler{
-		db:  db,
-		mux: http.NewServeMux(),
+		db:    db,
+		mux:   http.NewServeMux(),
+		store: NewStore(db),
 	}
 
 	h.mux.HandleFunc("GET /providers/strava/auth/callback", stravaAuthHandler(h.db))
 	h.mux.HandleFunc("GET /providers/strava/webhook", stravaRegisterWebhookHandler(h.db))
-	h.mux.HandleFunc("POST /providers/strava/webhook", stravaWebhookHandler(h.db))
+	h.mux.HandleFunc("POST /providers/strava/webhook", stravaWebhookHandler(h.db, h.store))
 
 	return h
 }
@@ -69,7 +71,7 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 		return nil
 	}
 
-	existingActivities, err := activity.GetProviderActivityRawData(h.db, prov.ID, task.UserID)
+	existingActivities, err := activity.GetProviderActivityRawData(ctx, h.db, prov.ID, task.UserID)
 	if err != nil {
 		return fmt.Errorf("failed to get existing activities: %w", err)
 	}
@@ -132,7 +134,7 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 			Data:               data,
 		}
 
-		err = activityRaw.Save(h.db)
+		err = h.store.SaveProviderActivityRawData(ctx, &activityRaw)
 		if err != nil {
 			return fmt.Errorf("failed to save activity: %w", err)
 		}
@@ -207,7 +209,7 @@ func stravaAuthHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) {
 			ExpiresAt:    time.Unix(int64(tokenResponse.ExpiresAt), 0),
 		}
 
-		err = credentials.Save(tx)
+		err = credentials.SaveTx(r.Context(), tx)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -255,7 +257,7 @@ func stravaRegisterWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.R
 			return
 		}
 
-		isValid, err := verifyWebhook(db, verifyToken)
+		isValid, err := verifyWebhook(r.Context(), db, verifyToken)
 		if err != nil {
 			slog.Error("error while verifying strava webhook token: " + err.Error())
 			http.Error(w, "error while verifying token", http.StatusInternalServerError)
@@ -276,7 +278,7 @@ func stravaRegisterWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.R
 	}
 }
 
-func stravaWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) {
+func stravaWebhookHandler(db *sqlx.DB, store Store) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		slog.Info("Received Strava Webhook")
 
@@ -297,7 +299,7 @@ func stravaWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) 
 			return
 		}
 
-		providerMap, err := provider.GetMap(db)
+		providerMap, err := provider.GetMap(ctx, db)
 		if err != nil {
 			slog.Error(err.Error())
 			http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
@@ -330,8 +332,6 @@ func stravaWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) 
 
 		if event.ObjectType == strava.WebhookActivity {
 			if event.AspectType == strava.WebhookCreate || event.AspectType == strava.WebhookUpdate {
-				activityRepo := activity.NewEnduranceOutdoorActivityRepo(db)
-
 				stravaActivity, err := client.GetActivity(event.ObjectID, false)
 				if err != nil {
 					slog.Error(err.Error())
@@ -353,7 +353,7 @@ func stravaWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) 
 					return
 				}
 
-				activityData := activity.ProviderActivityRawData{
+				activityRaw := activity.ProviderActivityRawData{
 					ProviderID:         prov.ID,
 					UserID:             user.ID,
 					ProviderActivityID: strconv.FormatInt(event.ObjectID, 10),
@@ -363,21 +363,21 @@ func stravaWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) 
 					Data:               data,
 				}
 
-				err = activityData.Save(db)
+				err = store.SaveProviderActivityRawData(ctx, &activityRaw)
 				if err != nil {
 					slog.Error(err.Error())
 					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
 					return
 				}
 
-				err = UploadRawActivityDetails(ctx, db, prov.Slug, &activityData, streams)
+				err = UploadRawActivityDetails(ctx, db, prov.Slug, &activityRaw, streams)
 				if err != nil {
 					slog.Error(err.Error())
 					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
 					return
 				}
 
-				act, err := activityData.ToEnduranceOutdoorActivity(providerMap)
+				act, err := activityRaw.ToEnduranceOutdoorActivity(providerMap)
 				if err != nil {
 					if !(errors.Is(err, stride.ErrActivityIsNotOutdoorEndurance) || errors.Is(err, stride.ErrUnsupportedSportType)) {
 						slog.Error(err.Error())
@@ -386,19 +386,19 @@ func stravaWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) 
 					}
 				}
 
-				actID, err := activityRepo.Upsert(ctx, act)
+				upsertedAct, err := store.UpsertActivityEnduranceOutdoor(ctx, act)
 				if err != nil {
 					slog.Error(err.Error())
 					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
 					return
 				}
 
-				act.ID = actID
+				act.ID = upsertedAct.ID
 
 				tags := act.ExtractActivityTags()
 
 				if len(tags) > 0 {
-					err = activityRepo.UpsertTagsAndLinkActivity(ctx, act, tags)
+					err = store.UpsertTagsAndLinkActivity(ctx, act, tags)
 					if err != nil {
 						slog.Error(err.Error())
 						http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
