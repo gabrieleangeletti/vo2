@@ -18,6 +18,7 @@ import (
 	"github.com/gabrieleangeletti/vo2/activity"
 	"github.com/gabrieleangeletti/vo2/internal"
 	"github.com/gabrieleangeletti/vo2/provider"
+	"github.com/gabrieleangeletti/vo2/store"
 )
 
 func newActivityCmd(cfg config) *cobra.Command {
@@ -57,7 +58,7 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 				log.Fatal(err)
 			}
 
-			store := internal.NewStore(cfg.DB)
+			store := store.NewStore(cfg.DB)
 
 			bar := progressbar.Default(int64(len(rawActivities)))
 

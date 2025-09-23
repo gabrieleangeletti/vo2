@@ -16,22 +16,24 @@ import (
 
 	"github.com/gabrieleangeletti/stride"
 	"github.com/gabrieleangeletti/stride/strava"
+	"github.com/gabrieleangeletti/vo2"
 	"github.com/gabrieleangeletti/vo2/activity"
 	"github.com/gabrieleangeletti/vo2/database"
 	"github.com/gabrieleangeletti/vo2/provider"
+	"github.com/gabrieleangeletti/vo2/store"
 )
 
 type Handler struct {
 	db    *sqlx.DB
 	mux   *http.ServeMux
-	store Store
+	store vo2.Store
 }
 
 func NewHandler(db *sqlx.DB) *Handler {
 	h := &Handler{
 		db:    db,
 		mux:   http.NewServeMux(),
-		store: NewStore(db),
+		store: store.NewStore(db),
 	}
 
 	h.mux.HandleFunc("GET /providers/strava/auth/callback", stravaAuthHandler(h.db))
@@ -278,7 +280,7 @@ func stravaRegisterWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.R
 	}
 }
 
-func stravaWebhookHandler(db *sqlx.DB, store Store) func(http.ResponseWriter, *http.Request) {
+func stravaWebhookHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		slog.Info("Received Strava Webhook")
 
