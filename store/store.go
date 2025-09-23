@@ -150,3 +150,33 @@ func (s *dbStore) SaveProviderActivityRawData(ctx context.Context, arg *activity
 	)
 	return err
 }
+
+// GetAthleteVolume retrieves volume data for an athlete by provider, frequency, sport, and time range.
+func (s *dbStore) GetAthleteVolume(ctx context.Context, params vo2.GetAthleteVolumeParams) ([]*vo2.AthleteVolumeData, error) {
+	queryParams := models.GetAthleteVolumeParams{
+		Frequency:    params.Frequency,
+		UserID:       params.UserID,
+		ProviderSlug: params.ProviderSlug,
+		Sport:        params.Sport,
+		StartDate:    params.StartDate,
+	}
+
+	res, err := s.q.GetAthleteVolume(ctx, queryParams)
+	if err != nil {
+		return nil, err
+	}
+
+	volumeData := make([]*vo2.AthleteVolumeData, len(res))
+	for i, r := range res {
+		volumeData[i] = &vo2.AthleteVolumeData{
+			Period:                   r.Period,
+			ActivityCount:            r.ActivityCount,
+			TotalDistanceMeters:      r.TotalDistanceMeters,
+			TotalElapsedTimeSeconds:  r.TotalElapsedTimeSeconds,
+			TotalMovingTimeSeconds:   r.TotalMovingTimeSeconds,
+			TotalElevationGainMeters: r.TotalElevationGainMeters,
+		}
+	}
+
+	return volumeData, nil
+}

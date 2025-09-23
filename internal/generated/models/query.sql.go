@@ -93,6 +93,91 @@ func (q *Queries) GetActivityTags(ctx context.Context, activityID uuid.UUID) ([]
 	return items, nil
 }
 
+const getAthleteVolume = `-- name: GetAthleteVolume :many
+WITH period_data AS (
+    SELECT
+        CASE
+            WHEN $1::text = 'day' THEN date_trunc('day', start_time)
+            WHEN $1::text = 'week' THEN date_trunc('week', start_time)
+            ELSE date_trunc('month', start_time)
+        END as period_ts,
+        distance,
+        elapsed_time,
+        moving_time,
+        elev_gain
+    FROM vo2.activities_endurance_outdoor a
+    JOIN vo2.providers p ON a.provider_id = p.id
+    WHERE
+        a.user_id = $2
+        AND p.slug = $3
+        AND lower(a.sport) = lower($4)
+        AND a.start_time >= $5::timestamptz
+)
+SELECT
+    period_ts::date::text as period,
+    COUNT(*)::int as activity_count,
+    COALESCE(SUM(distance), 0)::int as total_distance_meters,
+    COALESCE(SUM(elapsed_time), 0)::bigint as total_elapsed_time_seconds,
+    COALESCE(SUM(moving_time), 0)::bigint as total_moving_time_seconds,
+    COALESCE(SUM(elev_gain), 0)::int as total_elevation_gain_meters
+FROM period_data
+GROUP BY period_ts
+ORDER BY period_ts
+`
+
+type GetAthleteVolumeParams struct {
+	Frequency    string
+	UserID       uuid.UUID
+	ProviderSlug string
+	Sport        string
+	StartDate    time.Time
+}
+
+type GetAthleteVolumeRow struct {
+	Period                   string
+	ActivityCount            int32
+	TotalDistanceMeters      int32
+	TotalElapsedTimeSeconds  int64
+	TotalMovingTimeSeconds   int64
+	TotalElevationGainMeters int32
+}
+
+func (q *Queries) GetAthleteVolume(ctx context.Context, arg GetAthleteVolumeParams) ([]GetAthleteVolumeRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAthleteVolume,
+		arg.Frequency,
+		arg.UserID,
+		arg.ProviderSlug,
+		arg.Sport,
+		arg.StartDate,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAthleteVolumeRow
+	for rows.Next() {
+		var i GetAthleteVolumeRow
+		if err := rows.Scan(
+			&i.Period,
+			&i.ActivityCount,
+			&i.TotalDistanceMeters,
+			&i.TotalElapsedTimeSeconds,
+			&i.TotalMovingTimeSeconds,
+			&i.TotalElevationGainMeters,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listActivitiesEnduranceOutdoorByTag = `-- name: ListActivitiesEnduranceOutdoorByTag :many
 SELECT
 	a.id, a.provider_id, a.user_id, a.provider_raw_activity_id, a.name, a.description, a.sport, a.start_time, a.end_time, a.iana_timezone, a.utc_offset, a.elapsed_time, a.moving_time, a.distance, a.elev_gain, a.elev_loss, a.avg_speed, a.avg_hr, a.max_hr, a.summary_polyline, a.summary_route, a.gpx_file_uri, a.fit_file_uri, a.created_at, a.updated_at, a.deleted_at

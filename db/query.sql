@@ -74,3 +74,34 @@ FROM
 vo2.activities_endurance_outdoor_tags at
 JOIN vo2.activity_tags t ON at.tag_id = t.id
 WHERE at.activity_id = $1;
+
+-- name: GetAthleteVolume :many
+WITH period_data AS (
+    SELECT
+        CASE
+            WHEN @frequency::text = 'day' THEN date_trunc('day', start_time)
+            WHEN @frequency::text = 'week' THEN date_trunc('week', start_time)
+            ELSE date_trunc('month', start_time)
+        END as period_ts,
+        distance,
+        elapsed_time,
+        moving_time,
+        elev_gain
+    FROM vo2.activities_endurance_outdoor a
+    JOIN vo2.providers p ON a.provider_id = p.id
+    WHERE
+        a.user_id = @user_id
+        AND p.slug = @provider_slug
+        AND lower(a.sport) = lower(@sport)
+        AND a.start_time >= @start_date::timestamptz
+)
+SELECT
+    period_ts::date::text as period,
+    COUNT(*)::int as activity_count,
+    COALESCE(SUM(distance), 0)::int as total_distance_meters,
+    COALESCE(SUM(elapsed_time), 0)::bigint as total_elapsed_time_seconds,
+    COALESCE(SUM(moving_time), 0)::bigint as total_moving_time_seconds,
+    COALESCE(SUM(elev_gain), 0)::int as total_elevation_gain_meters
+FROM period_data
+GROUP BY period_ts
+ORDER BY period_ts;

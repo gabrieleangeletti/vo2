@@ -40,6 +40,8 @@ func NewHandler(db *sqlx.DB) *Handler {
 	h.mux.HandleFunc("GET /providers/strava/webhook", stravaRegisterWebhookHandler(h.db))
 	h.mux.HandleFunc("POST /providers/strava/webhook", stravaWebhookHandler(h.db, h.store))
 
+	h.mux.HandleFunc("GET /athletes/{athleteID}/metrics/volume", athleteVolumeHandler(h.db, h.store))
+
 	return h
 }
 
@@ -446,4 +448,78 @@ func queueHistoricalDataTasks(ctx context.Context, userID uuid.UUID, providerID 
 	}
 
 	return nil
+}
+
+func athleteVolumeHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+
+		athleteIDStr := r.PathValue("athleteID")
+		athleteID, err := uuid.Parse(athleteIDStr)
+		if err != nil {
+			http.Error(w, "Invalid athlete ID", http.StatusBadRequest)
+			return
+		}
+
+		user, err := GetUserByID(ctx, db, athleteID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				http.Error(w, "User not found", http.StatusNotFound)
+				return
+			}
+
+			slog.Error("Failed to get user", "error", err, "athleteID", athleteID)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		provider := r.URL.Query().Get("provider")
+		frequency := r.URL.Query().Get("frequency")
+		startDate := r.URL.Query().Get("startDate")
+		sport := r.URL.Query().Get("sport")
+
+		if provider == "" || frequency == "" || startDate == "" || sport == "" {
+			http.Error(w, "Missing required query parameters: provider, frequency, startDate, sport", http.StatusBadRequest)
+			return
+		}
+
+		if frequency != "day" && frequency != "week" && frequency != "month" {
+			http.Error(w, "Invalid frequency, must be one of: day, week, month", http.StatusBadRequest)
+			return
+		}
+
+		startDateTime, err := time.Parse("2006-01-02", startDate)
+		if err != nil {
+			http.Error(w, "Invalid startDate format, expected YYYY-MM-DD", http.StatusBadRequest)
+			return
+		}
+
+		volumeParams := vo2.GetAthleteVolumeParams{
+			Frequency:    frequency,
+			UserID:       user.ID,
+			ProviderSlug: provider,
+			Sport:        sport,
+			StartDate:    startDateTime,
+		}
+
+		volumeData, err := store.GetAthleteVolume(ctx, volumeParams)
+		if err != nil {
+			slog.Error("Failed to get athlete volume", "error", err, "params", volumeParams)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		response := map[string]any{
+			"userId":    user.ID,
+			"provider":  provider,
+			"frequency": frequency,
+			"sport":     sport,
+			"startDate": startDateTime.Format("2006-01-02"),
+			"data":      volumeData,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(response)
+	}
 }
