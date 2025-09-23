@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 
@@ -333,6 +334,26 @@ func stravaWebhookHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter
 		}
 
 		client := driver.NewClient(credentials.AccessToken)
+
+		auth := driver.NewAuth()
+
+		// TODO: we should store subscriptions in the database to avoid unnecessary API calls.
+		subs, err := auth.GetWebhookSubscriptions()
+		if err != nil {
+			slog.Error(err.Error())
+			http.Error(w, ErrGeneric.Error(), http.StatusBadRequest)
+			return
+		}
+
+		isValidSubscription := slices.ContainsFunc(subs, func(s strava.WebhookSubscription) bool {
+			return s.ID == event.SubscriptionID
+		})
+
+		if !isValidSubscription {
+			slog.Error("invalid subscription")
+			http.Error(w, "invalid event payload", http.StatusBadRequest)
+			return
+		}
 
 		if event.ObjectType == strava.WebhookActivity {
 			if event.AspectType == strava.WebhookCreate || event.AspectType == strava.WebhookUpdate {

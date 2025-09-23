@@ -22,8 +22,9 @@ type OAuth2Token struct {
 	ExpiresAt    time.Time
 }
 
-type ProviderDriver[C any] interface {
+type ProviderDriver[C any, A any] interface {
 	NewClient(accessToken string) C
+	NewAuth() A
 	RefreshToken(ctx context.Context, refreshToken string) (*OAuth2Token, error)
 }
 
@@ -43,6 +44,10 @@ func (d *StravaDriver) NewClient(accessToken string) *strava.Client {
 	return strava.NewClient(accessToken)
 }
 
+func (d *StravaDriver) NewAuth() *strava.Auth {
+	return strava.NewAuth(d.clientID, d.clientSecret)
+}
+
 func (d *StravaDriver) RefreshToken(ctx context.Context, refreshToken string) (*OAuth2Token, error) {
 	auth := strava.NewAuth(d.clientID, d.clientSecret)
 
@@ -60,7 +65,7 @@ func (d *StravaDriver) RefreshToken(ctx context.Context, refreshToken string) (*
 	return &token, nil
 }
 
-func ensureValidCredentials[C any](ctx context.Context, db *sqlx.DB, driver ProviderDriver[C], prov *provider.Provider, userID uuid.UUID) (*ProviderOAuth2Credentials, error) {
+func ensureValidCredentials[C any, A any](ctx context.Context, db *sqlx.DB, driver ProviderDriver[C, A], prov *provider.Provider, userID uuid.UUID) (*ProviderOAuth2Credentials, error) {
 	credentials, err := GetProviderOAuth2Credentials(db, prov.ID, userID)
 	if err != nil {
 		return nil, err
@@ -160,7 +165,7 @@ func GetProviderOAuth2Credentials(db *sqlx.DB, providerID int, userID uuid.UUID)
 	return &credentials, nil
 }
 
-func refreshIfExpired[C any](ctx context.Context, provider ProviderDriver[C], credentials *ProviderOAuth2Credentials) (bool, error) {
+func refreshIfExpired[C any, A any](ctx context.Context, provider ProviderDriver[C, A], credentials *ProviderOAuth2Credentials) (bool, error) {
 	if credentials.Expired(refreshTokenBuffer) {
 		newToken, err := provider.RefreshToken(ctx, credentials.RefreshToken)
 		if err != nil {
