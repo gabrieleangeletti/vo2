@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"slices"
 	"strconv"
 	"time"
 
@@ -61,6 +62,18 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 			store := store.NewStore(cfg.DB)
 
 			bar := progressbar.Default(int64(len(rawActivities)))
+
+			slices.SortFunc(rawActivities, func(a *activity.ProviderActivityRawData, b *activity.ProviderActivityRawData) int {
+				if a.StartTime.Before(b.StartTime) {
+					return 1
+				}
+
+				if a.StartTime.After(b.StartTime) {
+					return -1
+				}
+
+				return 0
+			})
 
 			for _, raw := range rawActivities {
 				err := bar.Add(1)

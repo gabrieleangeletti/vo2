@@ -76,7 +76,18 @@ JOIN vo2.activity_tags t ON at.tag_id = t.id
 WHERE at.activity_id = $1;
 
 -- name: GetAthleteVolume :many
-WITH period_data AS (
+WITH all_periods AS (
+    SELECT generate_series(
+        date_trunc(@frequency::text, @start_date::timestamptz),
+        date_trunc(@frequency::text, NOW()),
+        CASE
+            WHEN @frequency::text = 'day' THEN '1 day'
+            WHEN @frequency::text = 'week' THEN '1 week'
+            ELSE '1 month'
+        END::interval
+    ) as period_ts
+),
+period_data AS (
     SELECT
         CASE
             WHEN @frequency::text = 'day' THEN date_trunc('day', start_time)
@@ -96,12 +107,13 @@ WITH period_data AS (
         AND a.start_time >= @start_date::timestamptz
 )
 SELECT
-    period_ts::date::text as period,
-    COUNT(*)::int as activity_count,
-    COALESCE(SUM(distance), 0)::int as total_distance_meters,
-    COALESCE(SUM(elapsed_time), 0)::bigint as total_elapsed_time_seconds,
-    COALESCE(SUM(moving_time), 0)::bigint as total_moving_time_seconds,
-    COALESCE(SUM(elev_gain), 0)::int as total_elevation_gain_meters
-FROM period_data
-GROUP BY period_ts
-ORDER BY period_ts;
+    all_periods.period_ts::date::text as period,
+    COUNT(period_data.period_ts)::int as activity_count,
+    COALESCE(SUM(period_data.distance), 0)::int as total_distance_meters,
+    COALESCE(SUM(period_data.elapsed_time), 0)::bigint as total_elapsed_time_seconds,
+    COALESCE(SUM(period_data.moving_time), 0)::bigint as total_moving_time_seconds,
+    COALESCE(SUM(period_data.elev_gain), 0)::int as total_elevation_gain_meters
+FROM all_periods
+LEFT JOIN period_data ON all_periods.period_ts = period_data.period_ts
+GROUP BY all_periods.period_ts
+ORDER BY all_periods.period_ts;

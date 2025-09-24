@@ -139,10 +139,12 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 			Data:               data,
 		}
 
-		err = h.store.SaveProviderActivityRawData(ctx, &activityRaw)
+		activityRawID, err := h.store.SaveProviderActivityRawData(ctx, &activityRaw)
 		if err != nil {
 			return fmt.Errorf("failed to save activity: %w", err)
 		}
+
+		activityRaw.ID = activityRawID
 
 		streams, err := client.GetActivityStreams(detailedActivity.ID)
 		if err != nil {
@@ -388,12 +390,14 @@ func stravaWebhookHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter
 					Data:               data,
 				}
 
-				err = store.SaveProviderActivityRawData(ctx, &activityRaw)
+				activityRawID, err := store.SaveProviderActivityRawData(ctx, &activityRaw)
 				if err != nil {
 					slog.Error(err.Error())
 					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
 					return
 				}
+
+				activityRaw.ID = activityRawID
 
 				err = UploadRawActivityDetails(ctx, db, prov.Slug, &activityRaw, streams)
 				if err != nil {
@@ -473,6 +477,12 @@ func queueHistoricalDataTasks(ctx context.Context, userID uuid.UUID, providerID 
 
 func athleteVolumeHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		apiKey := GetSecret("VO2_API_KEY", true)
+		if r.Header.Get("x-vo2-api-key") != apiKey {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
 		ctx := r.Context()
 
 		athleteIDStr := r.PathValue("athleteID")

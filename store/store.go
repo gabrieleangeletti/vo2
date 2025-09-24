@@ -121,7 +121,7 @@ func (s *dbStore) UpsertTagsAndLinkActivity(ctx context.Context, a *activity.End
 	return nil
 }
 
-func (s *dbStore) SaveProviderActivityRawData(ctx context.Context, arg *activity.ProviderActivityRawData) error {
+func (s *dbStore) SaveProviderActivityRawData(ctx context.Context, arg *activity.ProviderActivityRawData) (uuid.UUID, error) {
 	query := `
 	INSERT INTO vo2.provider_activity_raw_data
 		(provider_id, user_id, provider_activity_id, start_time, elapsed_time, iana_timezone, utc_offset, data, detailed_activity_uri)
@@ -136,8 +136,11 @@ func (s *dbStore) SaveProviderActivityRawData(ctx context.Context, arg *activity
 		utc_offset = $7,
 		data = $8,
 		detailed_activity_uri = $9
+	RETURNING id
 	`
-	_, err := s.db.ExecContext(ctx, query,
+
+	var id uuid.UUID
+	err := s.db.QueryRowContext(ctx, query,
 		arg.ProviderID,
 		arg.UserID,
 		arg.ProviderActivityID,
@@ -147,8 +150,12 @@ func (s *dbStore) SaveProviderActivityRawData(ctx context.Context, arg *activity
 		arg.UTCOffset,
 		arg.Data,
 		arg.DetailedActivityURI,
-	)
-	return err
+	).Scan(&id)
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	return id, nil
 }
 
 // GetAthleteVolume retrieves volume data for an athlete by provider, frequency, sport, and time range.

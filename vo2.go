@@ -41,5 +41,5 @@ type Store interface {
 	Reader
 	UpsertActivityEnduranceOutdoor(ctx context.Context, arg *activity.EnduranceOutdoorActivity) (*activity.EnduranceOutdoorActivity, error)
 	UpsertTagsAndLinkActivity(ctx context.Context, a *activity.EnduranceOutdoorActivity, tags []*activity.ActivityTag) error
-	SaveProviderActivityRawData(ctx context.Context, arg *activity.ProviderActivityRawData) error
+	SaveProviderActivityRawData(ctx context.Context, arg *activity.ProviderActivityRawData) (uuid.UUID, error)
 }
