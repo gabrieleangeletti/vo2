@@ -1,37 +1,37 @@
 services:
-    api:
-        build:
-            context: .
-            dockerfile: Dockerfile.api
-        restart: always
-        environment:
-            POSTGRES_HOST=db
-            POSTGRES_PORT=5432
-            POSTGRES_USER=postgres
-            POSTGRES_PASSWORD=1234
-            POSTGRES_DB=vo2-dev
-            POSTGRES_SSLMODE=disable
-            POSTGRES_CHANNEL_BINDING=
-        ports:
-            - "8080:8080"
-        depends_on:
-            - db
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    restart: always
+    environment:
+      - POSTGRES_HOST=db
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=1234
+      - POSTGRES_DB=vo2-dev
+      - POSTGRES_SSLMODE=disable
+      - POSTGRES_CHANNEL_BINDING=
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
 
-    db:
-        build:
-            context: .
-            dockerfile: Dockerfile.db
-            args:
-                POSTGRES_HOST: localhost
-                POSTGRES_PORT: 5432
-                POSTGRES_USER: postgres
-                POSTGRES_PASSWORD: 1234
-                POSTGRES_DB: vo2-dev
-        restart: always
-        ports:
-            - "5432:5432"
-        volumes:
-            - postgres_data:/var/lib/postgresql/data
+  db:
+    build:
+      context: .
+      dockerfile: Dockerfile.db
+      args:
+        POSTGRES_HOST: localhost
+        POSTGRES_PORT: 5432
+        POSTGRES_USER: postgres
+        POSTGRES_PASSWORD: 1234
+        POSTGRES_DB: vo2-dev
+    restart: always
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 
 volumes:
-    postgres_data:
+  postgres_data:

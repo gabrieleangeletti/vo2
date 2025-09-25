@@ -15,7 +15,7 @@ func main() {
 	}
 	defer db.Close()
 
-	h := internal.NewHandler(db)
+	h := internal.NewHandler(db, internal.WithHttpLogging(internal.Development))
 
 	server := &http.Server{
 		Addr:    ":8080",

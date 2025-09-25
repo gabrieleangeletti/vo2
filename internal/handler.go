@@ -8,10 +8,12 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"slices"
 	"strconv"
 	"time"
 
+	"github.com/go-chi/httplog/v3"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 
@@ -24,30 +26,88 @@ import (
 	"github.com/gabrieleangeletti/vo2/store"
 )
 
+type Environment string
+
+const (
+	Development Environment = "development"
+	Production  Environment = "production"
+)
+
 type Handler struct {
-	db    *sqlx.DB
-	mux   *http.ServeMux
-	store vo2.Store
+	db          *sqlx.DB
+	handler     http.Handler
+	store       vo2.Store
+	middlewares []func(http.Handler) http.Handler
 }
 
-func NewHandler(db *sqlx.DB) *Handler {
+func NewHandler(db *sqlx.DB, options ...func(*Handler)) *Handler {
 	h := &Handler{
 		db:    db,
-		mux:   http.NewServeMux(),
 		store: store.NewStore(db),
 	}
 
-	h.mux.HandleFunc("GET /providers/strava/auth/callback", stravaAuthHandler(h.db))
-	h.mux.HandleFunc("GET /providers/strava/webhook", stravaRegisterWebhookHandler(h.db))
-	h.mux.HandleFunc("POST /providers/strava/webhook", stravaWebhookHandler(h.db, h.store))
+	for _, opt := range options {
+		opt(h)
+	}
 
-	h.mux.HandleFunc("GET /athletes/{athleteID}/metrics/volume", athleteVolumeHandler(h.db, h.store))
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /providers/strava/auth/callback", stravaAuthHandler(h.db))
+	mux.HandleFunc("GET /providers/strava/webhook", stravaRegisterWebhookHandler(h.db))
+	mux.HandleFunc("POST /providers/strava/webhook", stravaWebhookHandler(h.db, h.store))
+
+	mux.HandleFunc("GET /athletes/{athleteID}/metrics/volume", athleteVolumeHandler(h.db, h.store))
+
+	h.handler = h.chain(mux)
 
 	return h
 }
 
+func WithHttpLogging(env Environment) func(h *Handler) {
+	debugFn := func(r *http.Request) bool {
+		return env == Development
+	}
+
+	logFormat := httplog.SchemaECS.Concise(false)
+
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		ReplaceAttr: logFormat.ReplaceAttr,
+	})).With(
+		slog.String("app", "vo2"),
+		slog.String("version", "v0.0.1"),
+		slog.String("env", string(env)),
+	)
+
+	middleware := httplog.RequestLogger(logger, &httplog.Options{
+		Level:              slog.LevelInfo,
+		Schema:             httplog.SchemaECS,
+		RecoverPanics:      true,
+		LogRequestHeaders:  []string{"Origin"},
+		LogResponseHeaders: []string{},
+		LogRequestBody:     debugFn,
+		LogResponseBody:    debugFn,
+	})
+
+	return func(h *Handler) {
+		h.middlewares = append(h.middlewares, middleware)
+	}
+}
+
+func (h *Handler) chain(base http.Handler) http.Handler {
+	if len(h.middlewares) == 0 {
+		return base
+	}
+
+	handler := base
+	for i := len(h.middlewares) - 1; i >= 0; i-- {
+		handler = h.middlewares[i](handler)
+	}
+
+	return handler
+}
+
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	h.mux.ServeHTTP(w, r)
+	h.handler.ServeHTTP(w, r)
 }
 
 func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task HistoricalDataTask) error {

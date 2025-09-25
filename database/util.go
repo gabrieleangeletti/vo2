@@ -21,15 +21,18 @@ type Config struct {
 
 func NewDB(cfg Config) (*sqlx.DB, error) {
 	dsn := fmt.Sprintf(
-		"postgres://%s:%s@%s:%s/%s?sslmode=%s&channel_binding=%s",
+		"postgres://%s:%s@%s:%s/%s?sslmode=%s",
 		cfg.User,
 		cfg.Password,
 		cfg.Host,
 		cfg.Port,
 		cfg.DB,
 		cfg.SSLMode,
-		cfg.ChannelBinding,
 	)
+
+	if cfg.ChannelBinding != "" {
+		dsn += fmt.Sprintf("&channel_binding=%s", cfg.ChannelBinding)
+	}
 
 	db, err := sqlx.Open("pgx", dsn)
 	if err != nil {
