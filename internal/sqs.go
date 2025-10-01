@@ -52,9 +52,13 @@ func (s *SQSClient) SendHistoricalDataTask(ctx context.Context, task HistoricalD
 	}
 
 	_, err = s.client.SendMessage(ctx, &sqs.SendMessageInput{
-		QueueUrl:    aws.String(s.queueURL),
-		MessageBody: aws.String(string(taskJSON)),
+		QueueUrl:       aws.String(s.queueURL),
+		MessageBody:    aws.String(string(taskJSON)),
+		MessageGroupId: aws.String(task.UserID.String()),
 	})
+	if err != nil {
+		return err
+	}
 
-	return err
+	return nil
 }

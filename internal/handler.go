@@ -159,13 +159,7 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 		// TODO: implement proper solution.
 		if existing, ok := existingActivitiesMap[act.ID]; ok {
 			if !existing.DetailedActivityURI.Valid {
-				var detailedActivity strava.ActivityDetailed
-				err := json.Unmarshal(existing.Data, &detailedActivity)
-				if err != nil {
-					return fmt.Errorf("failed to unmarshal activity: %w", err)
-				}
-
-				streams, err := client.GetActivityStreams(detailedActivity.ID)
+				streams, err := client.GetActivityStreams(act.ID)
 				if err != nil {
 					return fmt.Errorf("failed to get activity streams: %w", err)
 				}

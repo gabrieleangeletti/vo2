@@ -31,10 +31,12 @@ resource "aws_lambda_function_url" "vo2_lambda_url" {
 
 # SQS Queue for historical data pulling jobs
 resource "aws_sqs_queue" "historical_data_queue" {
-  name                       = "vo2-historical-data-queue"
-  visibility_timeout_seconds = 300     # 5 minutes
-  message_retention_seconds  = 1209600 # 14 days
-  receive_wait_time_seconds  = 20      # long polling
+  name                        = "vo2-historical-data-queue.fifo"
+  fifo_queue                  = true
+  content_based_deduplication = true
+  visibility_timeout_seconds  = 300     # 5 minutes
+  message_retention_seconds   = 1209600 # 14 days
+  receive_wait_time_seconds   = 20      # long polling
 
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.historical_data_dlq.arn
@@ -44,7 +46,8 @@ resource "aws_sqs_queue" "historical_data_queue" {
 
 # Dead Letter Queue for failed historical data jobs
 resource "aws_sqs_queue" "historical_data_dlq" {
-  name                      = "vo2-historical-data-dlq"
+  name                      = "vo2-historical-data-dlq.fifo"
+  fifo_queue                = true
   message_retention_seconds = 1209600 # 14 days
 }
 
