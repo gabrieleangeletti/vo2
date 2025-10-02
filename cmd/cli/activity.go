@@ -81,9 +81,9 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 					log.Fatal(err)
 				}
 
-				act, err := raw.ToEnduranceOutdoorActivity(providerMap)
+				act, err := raw.ToEnduranceActivity(providerMap)
 				if err != nil {
-					if errors.Is(err, stride.ErrActivityIsNotOutdoorEndurance) ||
+					if errors.Is(err, stride.ErrActivityIsNotEndurance) ||
 						errors.Is(err, stride.ErrUnsupportedSportType) {
 						continue
 					}
@@ -91,7 +91,7 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 					log.Fatal(err)
 				}
 
-				act, err = store.UpsertActivityEnduranceOutdoor(ctx, act)
+				act, err = store.UpsertActivityEndurance(ctx, act)
 				if err != nil {
 					log.Fatal(err)
 				}
@@ -180,7 +180,7 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 						act.MaxHR = maxValue
 					}
 
-					_, err = store.UpsertActivityEnduranceOutdoor(ctx, act)
+					_, err = store.UpsertActivityEndurance(ctx, act)
 					if err != nil {
 						log.Fatal(err)
 					}

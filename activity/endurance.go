@@ -34,7 +34,7 @@ type ProviderActivityRawData struct {
 	DeletedAt           sql.NullTime    `json:"deletedAt" db:"deleted_at"`
 }
 
-func (a *ProviderActivityRawData) ToEnduranceOutdoorActivity(providerMap map[int]provider.Provider) (*EnduranceOutdoorActivity, error) {
+func (a *ProviderActivityRawData) ToEnduranceActivity(providerMap map[int]provider.Provider) (*EnduranceActivity, error) {
 	prov, ok := providerMap[a.ProviderID]
 	if !ok {
 		return nil, fmt.Errorf("%w: %d", provider.ErrProviderNotFound, a.ProviderID)
@@ -48,13 +48,13 @@ func (a *ProviderActivityRawData) ToEnduranceOutdoorActivity(providerMap map[int
 			return nil, err
 		}
 
-		isEndurance, err := act.IsEnduranceOutdoorActivity()
+		isEndurance, err := act.IsEnduranceActivity()
 		if err != nil {
 			return nil, err
 		}
 
 		if !isEndurance {
-			return nil, stride.ErrActivityIsNotOutdoorEndurance
+			return nil, stride.ErrActivityIsNotEndurance
 		}
 
 		sport, err := act.Sport()
@@ -73,7 +73,7 @@ func (a *ProviderActivityRawData) ToEnduranceOutdoorActivity(providerMap map[int
 			elevGain = &gain
 		}
 
-		enduranceOutdoorActivity := &EnduranceOutdoorActivity{
+		enduranceActivity := &EnduranceActivity{
 			ProviderID:            a.ProviderID,
 			UserID:                a.UserID,
 			ProviderRawActivityID: a.ID,
@@ -93,17 +93,17 @@ func (a *ProviderActivityRawData) ToEnduranceOutdoorActivity(providerMap map[int
 
 		summaryPolyline := act.SummaryPolyline()
 		if summaryPolyline != "" {
-			enduranceOutdoorActivity.SummaryPolyline = summaryPolyline
+			enduranceActivity.SummaryPolyline = summaryPolyline
 
 			wkt, err := stride.PolylineToWKT(summaryPolyline)
 			if err != nil {
 				return nil, err
 			}
 
-			enduranceOutdoorActivity.SummaryRoute = wkt
+			enduranceActivity.SummaryRoute = wkt
 		}
 
-		return enduranceOutdoorActivity, nil
+		return enduranceActivity, nil
 	default:
 		return nil, fmt.Errorf("%w: %d", provider.ErrUnsupportedProvider, a.ProviderID)
 	}
@@ -148,7 +148,7 @@ func GetProviderActivityRawData(ctx context.Context, db *sqlx.DB, providerID int
 	return data, nil
 }
 
-type EnduranceOutdoorActivity struct {
+type EnduranceActivity struct {
 	ID                    uuid.UUID    `json:"id"`
 	ProviderID            int          `json:"providerId"`
 	UserID                uuid.UUID    `json:"userId"`
@@ -180,7 +180,7 @@ type EnduranceOutdoorActivity struct {
 	Tags     []*ActivityTag `json:"tags"`
 }
 
-func NewEnduranceOutdoorActivity(a models.Vo2ActivitiesEnduranceOutdoor) *EnduranceOutdoorActivity {
+func NewEnduranceActivity(a models.Vo2ActivitiesEndurance) *EnduranceActivity {
 	var utcOffset *int32
 	if a.UtcOffset.Valid {
 		utcOffset = &a.UtcOffset.Int32
@@ -201,7 +201,7 @@ func NewEnduranceOutdoorActivity(a models.Vo2ActivitiesEnduranceOutdoor) *Endura
 		summaryRoute = a.SummaryRoute.(string)
 	}
 
-	return &EnduranceOutdoorActivity{
+	return &EnduranceActivity{
 		ID:                    a.ID,
 		ProviderID:            int(a.ProviderID),
 		UserID:                a.UserID,
@@ -229,7 +229,7 @@ func NewEnduranceOutdoorActivity(a models.Vo2ActivitiesEnduranceOutdoor) *Endura
 }
 
 // ExtractActivityTags extracts hashtags from the activity description.
-func (a *EnduranceOutdoorActivity) ExtractActivityTags() []*ActivityTag {
+func (a *EnduranceActivity) ExtractActivityTags() []*ActivityTag {
 	if a.Description == "" {
 		return nil
 	}
@@ -246,9 +246,9 @@ func (a *EnduranceOutdoorActivity) ExtractActivityTags() []*ActivityTag {
 	return tags
 }
 
-// ToUpsertParams converts the domain model to sqlc UpsertActivityEnduranceOutdoor parameters
-func (a *EnduranceOutdoorActivity) ToUpsertParams() models.UpsertActivityEnduranceOutdoorParams {
-	return models.UpsertActivityEnduranceOutdoorParams{
+// ToUpsertParams converts the domain model to sqlc UpsertActivityEndurance parameters
+func (a *EnduranceActivity) ToUpsertParams() models.UpsertActivityEnduranceParams {
+	return models.UpsertActivityEnduranceParams{
 		ProviderID:            int32(a.ProviderID),
 		UserID:                a.UserID,
 		ProviderRawActivityID: a.ProviderRawActivityID,

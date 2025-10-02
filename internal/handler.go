@@ -460,16 +460,16 @@ func stravaWebhookHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter
 					return
 				}
 
-				act, err := activityRaw.ToEnduranceOutdoorActivity(providerMap)
+				act, err := activityRaw.ToEnduranceActivity(providerMap)
 				if err != nil {
-					if !(errors.Is(err, stride.ErrActivityIsNotOutdoorEndurance) || errors.Is(err, stride.ErrUnsupportedSportType)) {
+					if !(errors.Is(err, stride.ErrActivityIsNotEndurance) || errors.Is(err, stride.ErrUnsupportedSportType)) {
 						slog.Error(err.Error())
 						http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
 						return
 					}
 				}
 
-				upsertedAct, err := store.UpsertActivityEnduranceOutdoor(ctx, act)
+				upsertedAct, err := store.UpsertActivityEndurance(ctx, act)
 				if err != nil {
 					slog.Error(err.Error())
 					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)

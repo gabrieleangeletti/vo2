@@ -33,29 +33,29 @@ func NewStore(db *sqlx.DB) vo2.Store {
 	}
 }
 
-// UpsertActivityEnduranceOutdoor inserts or updates an endurance activity.
-func (s *dbStore) UpsertActivityEnduranceOutdoor(ctx context.Context, arg *activity.EnduranceOutdoorActivity) (*activity.EnduranceOutdoorActivity, error) {
-	res, err := s.q.UpsertActivityEnduranceOutdoor(ctx, arg.ToUpsertParams())
+// UpsertActivityEndurance inserts or updates an endurance activity.
+func (s *dbStore) UpsertActivityEndurance(ctx context.Context, arg *activity.EnduranceActivity) (*activity.EnduranceActivity, error) {
+	res, err := s.q.UpsertActivityEndurance(ctx, arg.ToUpsertParams())
 	if err != nil {
 		return nil, err
 	}
 
-	return activity.NewEnduranceOutdoorActivity(res), nil
+	return activity.NewEnduranceActivity(res), nil
 }
 
-// GetActivityEnduranceOutdoor retrieves an endurance activity by its ID.
-func (s *dbStore) GetActivityEnduranceOutdoor(ctx context.Context, id uuid.UUID) (*activity.EnduranceOutdoorActivity, error) {
-	res, err := s.q.GetActivityEnduranceOutdoor(ctx, id)
+// GetActivityEndurance retrieves an endurance activity by its ID.
+func (s *dbStore) GetActivityEndurance(ctx context.Context, id uuid.UUID) (*activity.EnduranceActivity, error) {
+	res, err := s.q.GetActivityEndurance(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	return activity.NewEnduranceOutdoorActivity(res), nil
+	return activity.NewEnduranceActivity(res), nil
 }
 
-// ListActivitiesEnduranceOutdoorByTag retrieves a list of activities by tag.
-func (s *dbStore) ListActivitiesEnduranceOutdoorByTag(ctx context.Context, providerID int, userID uuid.UUID, tag string) ([]*activity.EnduranceOutdoorActivity, error) {
-	res, err := s.q.ListActivitiesEnduranceOutdoorByTag(ctx, models.ListActivitiesEnduranceOutdoorByTagParams{
+// ListActivitiesEnduranceByTag retrieves a list of activities by tag.
+func (s *dbStore) ListActivitiesEnduranceByTag(ctx context.Context, providerID int, userID uuid.UUID, tag string) ([]*activity.EnduranceActivity, error) {
+	res, err := s.q.ListActivitiesEnduranceByTag(ctx, models.ListActivitiesEnduranceByTagParams{
 		ProviderID: int32(providerID),
 		UserID:     userID,
 		Tag:        tag,
@@ -64,9 +64,9 @@ func (s *dbStore) ListActivitiesEnduranceOutdoorByTag(ctx context.Context, provi
 		return nil, err
 	}
 
-	activities := make([]*activity.EnduranceOutdoorActivity, len(res))
+	activities := make([]*activity.EnduranceActivity, len(res))
 	for i, r := range res {
-		activities[i] = activity.NewEnduranceOutdoorActivity(r)
+		activities[i] = activity.NewEnduranceActivity(r)
 	}
 
 	return activities, nil
@@ -87,7 +87,7 @@ func (s *dbStore) GetActivityTags(ctx context.Context, activityID uuid.UUID) ([]
 	return tags, nil
 }
 
-func (s *dbStore) UpsertTagsAndLinkActivity(ctx context.Context, a *activity.EnduranceOutdoorActivity, tags []*activity.ActivityTag) error {
+func (s *dbStore) UpsertTagsAndLinkActivity(ctx context.Context, a *activity.EnduranceActivity, tags []*activity.ActivityTag) error {
 	if len(tags) == 0 {
 		return nil
 	}
@@ -108,7 +108,7 @@ func (s *dbStore) UpsertTagsAndLinkActivity(ctx context.Context, a *activity.End
 		DO UPDATE SET description = COALESCE(EXCLUDED.description, activity_tags.description)
 		RETURNING id, name
 	)
-	INSERT INTO vo2.activities_endurance_outdoor_tags (activity_id, tag_id)
+	INSERT INTO vo2.activities_endurance_tags (activity_id, tag_id)
 	SELECT $3, ut.id
 	FROM upserted_tags ut
 	ON CONFLICT DO NOTHING`

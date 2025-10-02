@@ -1,5 +1,5 @@
--- name: UpsertActivityEnduranceOutdoor :one
-INSERT INTO vo2.activities_endurance_outdoor
+-- name: UpsertActivityEndurance :one
+INSERT INTO vo2.activities_endurance
 	(provider_id, user_id, provider_raw_activity_id, name, description, sport, start_time, end_time, iana_timezone, utc_offset, elapsed_time, moving_time, distance, elev_gain, elev_loss, avg_speed, avg_hr, max_hr, summary_polyline, summary_route, gpx_file_uri, fit_file_uri)
 VALUES
 	(
@@ -50,17 +50,17 @@ DO UPDATE SET
 	fit_file_uri = @fit_file_uri
 RETURNING *;
 
--- name: GetActivityEnduranceOutdoor :one
+-- name: GetActivityEndurance :one
 SELECT
 	a.*
-FROM vo2.activities_endurance_outdoor a
+FROM vo2.activities_endurance a
 WHERE a.id = $1;
 
--- name: ListActivitiesEnduranceOutdoorByTag :many
+-- name: ListActivitiesEnduranceByTag :many
 SELECT
 	a.*
-FROM vo2.activities_endurance_outdoor a
-JOIN vo2.activities_endurance_outdoor_tags at ON at.activity_id = a.id
+FROM vo2.activities_endurance a
+JOIN vo2.activities_endurance_tags at ON at.activity_id = a.id
 JOIN vo2.activity_tags t ON at.tag_id = t.id
 WHERE
 	a.provider_id = sqlc.arg(provider_id) AND
@@ -71,7 +71,7 @@ WHERE
 SELECT
     t.*
 FROM
-vo2.activities_endurance_outdoor_tags at
+vo2.activities_endurance_tags at
 JOIN vo2.activity_tags t ON at.tag_id = t.id
 WHERE at.activity_id = $1;
 
@@ -98,7 +98,7 @@ period_data AS (
         elapsed_time,
         moving_time,
         elev_gain
-    FROM vo2.activities_endurance_outdoor a
+    FROM vo2.activities_endurance a
     JOIN vo2.providers p ON a.provider_id = p.id
     WHERE
         a.user_id = @user_id

@@ -55,8 +55,8 @@ func (ns NullVo2ProviderConnectionType) Value() (driver.Value, error) {
 	return string(ns.Vo2ProviderConnectionType), nil
 }
 
-// Endurance activities performed outdoors
-type Vo2ActivitiesEnduranceOutdoor struct {
+// Endurance activities
+type Vo2ActivitiesEndurance struct {
 	ID                    uuid.UUID
 	ProviderID            int32
 	UserID                uuid.UUID
@@ -104,7 +104,7 @@ type Vo2ActivitiesEnduranceOutdoor struct {
 	DeletedAt  sql.NullTime
 }
 
-type Vo2ActivitiesEnduranceOutdoorTag struct {
+type Vo2ActivitiesEnduranceTag struct {
 	ActivityID uuid.UUID
 	TagID      int32
 }

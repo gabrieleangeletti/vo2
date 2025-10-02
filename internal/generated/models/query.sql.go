@@ -13,16 +13,16 @@ import (
 	"github.com/google/uuid"
 )
 
-const getActivityEnduranceOutdoor = `-- name: GetActivityEnduranceOutdoor :one
+const getActivityEndurance = `-- name: GetActivityEndurance :one
 SELECT
 	a.id, a.provider_id, a.user_id, a.provider_raw_activity_id, a.name, a.description, a.sport, a.start_time, a.end_time, a.iana_timezone, a.utc_offset, a.elapsed_time, a.moving_time, a.distance, a.elev_gain, a.elev_loss, a.avg_speed, a.avg_hr, a.max_hr, a.summary_polyline, a.summary_route, a.gpx_file_uri, a.fit_file_uri, a.created_at, a.updated_at, a.deleted_at
-FROM vo2.activities_endurance_outdoor a
+FROM vo2.activities_endurance a
 WHERE a.id = $1
 `
 
-func (q *Queries) GetActivityEnduranceOutdoor(ctx context.Context, id uuid.UUID) (Vo2ActivitiesEnduranceOutdoor, error) {
-	row := q.db.QueryRowContext(ctx, getActivityEnduranceOutdoor, id)
-	var i Vo2ActivitiesEnduranceOutdoor
+func (q *Queries) GetActivityEndurance(ctx context.Context, id uuid.UUID) (Vo2ActivitiesEndurance, error) {
+	row := q.db.QueryRowContext(ctx, getActivityEndurance, id)
+	var i Vo2ActivitiesEndurance
 	err := row.Scan(
 		&i.ID,
 		&i.ProviderID,
@@ -58,7 +58,7 @@ const getActivityTags = `-- name: GetActivityTags :many
 SELECT
     t.id, t.name, t.description, t.created_at, t.updated_at, t.deleted_at
 FROM
-vo2.activities_endurance_outdoor_tags at
+vo2.activities_endurance_tags at
 JOIN vo2.activity_tags t ON at.tag_id = t.id
 WHERE at.activity_id = $1
 `
@@ -116,7 +116,7 @@ period_data AS (
         elapsed_time,
         moving_time,
         elev_gain
-    FROM vo2.activities_endurance_outdoor a
+    FROM vo2.activities_endurance a
     JOIN vo2.providers p ON a.provider_id = p.id
     WHERE
         a.user_id = $3
@@ -190,11 +190,11 @@ func (q *Queries) GetAthleteVolume(ctx context.Context, arg GetAthleteVolumePara
 	return items, nil
 }
 
-const listActivitiesEnduranceOutdoorByTag = `-- name: ListActivitiesEnduranceOutdoorByTag :many
+const listActivitiesEnduranceByTag = `-- name: ListActivitiesEnduranceByTag :many
 SELECT
 	a.id, a.provider_id, a.user_id, a.provider_raw_activity_id, a.name, a.description, a.sport, a.start_time, a.end_time, a.iana_timezone, a.utc_offset, a.elapsed_time, a.moving_time, a.distance, a.elev_gain, a.elev_loss, a.avg_speed, a.avg_hr, a.max_hr, a.summary_polyline, a.summary_route, a.gpx_file_uri, a.fit_file_uri, a.created_at, a.updated_at, a.deleted_at
-FROM vo2.activities_endurance_outdoor a
-JOIN vo2.activities_endurance_outdoor_tags at ON at.activity_id = a.id
+FROM vo2.activities_endurance a
+JOIN vo2.activities_endurance_tags at ON at.activity_id = a.id
 JOIN vo2.activity_tags t ON at.tag_id = t.id
 WHERE
 	a.provider_id = $1 AND
@@ -202,21 +202,21 @@ WHERE
 	lower(t.name) = lower($3)
 `
 
-type ListActivitiesEnduranceOutdoorByTagParams struct {
+type ListActivitiesEnduranceByTagParams struct {
 	ProviderID int32
 	UserID     uuid.UUID
 	Tag        string
 }
 
-func (q *Queries) ListActivitiesEnduranceOutdoorByTag(ctx context.Context, arg ListActivitiesEnduranceOutdoorByTagParams) ([]Vo2ActivitiesEnduranceOutdoor, error) {
-	rows, err := q.db.QueryContext(ctx, listActivitiesEnduranceOutdoorByTag, arg.ProviderID, arg.UserID, arg.Tag)
+func (q *Queries) ListActivitiesEnduranceByTag(ctx context.Context, arg ListActivitiesEnduranceByTagParams) ([]Vo2ActivitiesEndurance, error) {
+	rows, err := q.db.QueryContext(ctx, listActivitiesEnduranceByTag, arg.ProviderID, arg.UserID, arg.Tag)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Vo2ActivitiesEnduranceOutdoor
+	var items []Vo2ActivitiesEndurance
 	for rows.Next() {
-		var i Vo2ActivitiesEnduranceOutdoor
+		var i Vo2ActivitiesEndurance
 		if err := rows.Scan(
 			&i.ID,
 			&i.ProviderID,
@@ -258,8 +258,8 @@ func (q *Queries) ListActivitiesEnduranceOutdoorByTag(ctx context.Context, arg L
 	return items, nil
 }
 
-const upsertActivityEnduranceOutdoor = `-- name: UpsertActivityEnduranceOutdoor :one
-INSERT INTO vo2.activities_endurance_outdoor
+const upsertActivityEndurance = `-- name: UpsertActivityEndurance :one
+INSERT INTO vo2.activities_endurance
 	(provider_id, user_id, provider_raw_activity_id, name, description, sport, start_time, end_time, iana_timezone, utc_offset, elapsed_time, moving_time, distance, elev_gain, elev_loss, avg_speed, avg_hr, max_hr, summary_polyline, summary_route, gpx_file_uri, fit_file_uri)
 VALUES
 	(
@@ -311,7 +311,7 @@ DO UPDATE SET
 RETURNING id, provider_id, user_id, provider_raw_activity_id, name, description, sport, start_time, end_time, iana_timezone, utc_offset, elapsed_time, moving_time, distance, elev_gain, elev_loss, avg_speed, avg_hr, max_hr, summary_polyline, summary_route, gpx_file_uri, fit_file_uri, created_at, updated_at, deleted_at
 `
 
-type UpsertActivityEnduranceOutdoorParams struct {
+type UpsertActivityEnduranceParams struct {
 	ProviderID            int32
 	UserID                uuid.UUID
 	ProviderRawActivityID uuid.UUID
@@ -336,8 +336,8 @@ type UpsertActivityEnduranceOutdoorParams struct {
 	FitFileUri            sql.NullString
 }
 
-func (q *Queries) UpsertActivityEnduranceOutdoor(ctx context.Context, arg UpsertActivityEnduranceOutdoorParams) (Vo2ActivitiesEnduranceOutdoor, error) {
-	row := q.db.QueryRowContext(ctx, upsertActivityEnduranceOutdoor,
+func (q *Queries) UpsertActivityEndurance(ctx context.Context, arg UpsertActivityEnduranceParams) (Vo2ActivitiesEndurance, error) {
+	row := q.db.QueryRowContext(ctx, upsertActivityEndurance,
 		arg.ProviderID,
 		arg.UserID,
 		arg.ProviderRawActivityID,
@@ -361,7 +361,7 @@ func (q *Queries) UpsertActivityEnduranceOutdoor(ctx context.Context, arg Upsert
 		arg.GpxFileUri,
 		arg.FitFileUri,
 	)
-	var i Vo2ActivitiesEnduranceOutdoor
+	var i Vo2ActivitiesEndurance
 	err := row.Scan(
 		&i.ID,
 		&i.ProviderID,
