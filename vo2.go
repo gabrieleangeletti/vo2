@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/gabrieleangeletti/stride"
 	"github.com/gabrieleangeletti/vo2/activity"
 )
 
@@ -19,11 +20,11 @@ type AthleteVolumeData struct {
 }
 
 type GetAthleteVolumeParams struct {
-	Frequency    string    `json:"frequency"`
-	UserID       uuid.UUID `json:"userId"`
-	ProviderSlug string    `json:"providerSlug"`
-	Sport        string    `json:"sport"`
-	StartDate    time.Time `json:"startDate"`
+	Frequency    string       `json:"frequency"`
+	UserID       uuid.UUID    `json:"userId"`
+	ProviderSlug string       `json:"providerSlug"`
+	Sport        stride.Sport `json:"sport"`
+	StartDate    time.Time    `json:"startDate"`
 }
 
 // Reader defines the interface for read-only database operations.

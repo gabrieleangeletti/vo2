@@ -561,9 +561,9 @@ func athleteVolumeHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter
 		provider := r.URL.Query().Get("provider")
 		frequency := r.URL.Query().Get("frequency")
 		startDate := r.URL.Query().Get("startDate")
-		sport := r.URL.Query().Get("sport")
+		sportQ := r.URL.Query().Get("sport")
 
-		if provider == "" || frequency == "" || startDate == "" || sport == "" {
+		if provider == "" || frequency == "" || startDate == "" || sportQ == "" {
 			http.Error(w, "Missing required query parameters: provider, frequency, startDate, sport", http.StatusBadRequest)
 			return
 		}
@@ -576,6 +576,17 @@ func athleteVolumeHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter
 		startDateTime, err := time.Parse("2006-01-02", startDate)
 		if err != nil {
 			http.Error(w, "Invalid startDate format, expected YYYY-MM-DD", http.StatusBadRequest)
+			return
+		}
+
+		sport, err := stride.ParseSport(sportQ)
+		if err != nil {
+			http.Error(w, "Invalid sport", http.StatusBadRequest)
+			return
+		}
+
+		if !stride.IsEnduranceActivity(sport) {
+			http.Error(w, "Invalid sport, must be an endurance activity", http.StatusBadRequest)
 			return
 		}
 

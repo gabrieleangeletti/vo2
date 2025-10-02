@@ -164,7 +164,7 @@ func (s *dbStore) GetAthleteVolume(ctx context.Context, params vo2.GetAthleteVol
 		Frequency:    params.Frequency,
 		UserID:       params.UserID,
 		ProviderSlug: params.ProviderSlug,
-		Sport:        params.Sport,
+		Sport:        string(params.Sport),
 		StartDate:    params.StartDate,
 	}
 
