@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 const getActivityEndurance = `-- name: GetActivityEndurance :one
@@ -94,59 +95,74 @@ func (q *Queries) GetActivityTags(ctx context.Context, activityID uuid.UUID) ([]
 }
 
 const getAthleteVolume = `-- name: GetAthleteVolume :many
-WITH all_periods AS (
+WITH selected_sports AS (
+    SELECT DISTINCT lower(ss.sport) AS sport
+    FROM unnest($1::text[]) AS ss(sport)
+),
+all_periods AS (
     SELECT generate_series(
-        date_trunc($1::text, $2::timestamptz),
-        date_trunc($1::text, NOW()),
+        date_trunc($2::text, $3::timestamptz),
+        date_trunc($2::text, NOW()),
         CASE
-            WHEN $1::text = 'day' THEN '1 day'
-            WHEN $1::text = 'week' THEN '1 week'
+            WHEN $2::text = 'day' THEN '1 day'
+            WHEN $2::text = 'week' THEN '1 week'
             ELSE '1 month'
         END::interval
     ) as period_ts
 ),
+period_sports AS (
+    SELECT ap.period_ts, ss.sport
+    FROM all_periods ap
+    CROSS JOIN selected_sports ss
+),
 period_data AS (
     SELECT
         CASE
-            WHEN $1::text = 'day' THEN date_trunc('day', start_time)
-            WHEN $1::text = 'week' THEN date_trunc('week', start_time)
-            ELSE date_trunc('month', start_time)
+            WHEN $2::text = 'day' THEN date_trunc('day', a.start_time)
+            WHEN $2::text = 'week' THEN date_trunc('week', a.start_time)
+            ELSE date_trunc('month', a.start_time)
         END as period_ts,
-        distance,
-        elapsed_time,
-        moving_time,
-        elev_gain
+        lower(a.sport) AS sport,
+        COUNT(*)::int AS activity_count,
+        COALESCE(SUM(a.distance), 0)::int AS total_distance_meters,
+        COALESCE(SUM(a.elapsed_time), 0)::bigint AS total_elapsed_time_seconds,
+        COALESCE(SUM(a.moving_time), 0)::bigint AS total_moving_time_seconds,
+        COALESCE(SUM(a.elev_gain), 0)::int AS total_elevation_gain_meters
     FROM vo2.activities_endurance a
     JOIN vo2.providers p ON a.provider_id = p.id
+    JOIN selected_sports ss ON lower(a.sport) = ss.sport
     WHERE
-        a.user_id = $3
-        AND p.slug = $4
-        AND lower(a.sport) = lower($5)
-        AND a.start_time >= $2::timestamptz
+        a.user_id = $4
+        AND p.slug = $5
+        AND a.start_time >= $3::timestamptz
+    GROUP BY period_ts, lower(a.sport)
 )
 SELECT
-    all_periods.period_ts::date::text as period,
-    COUNT(period_data.period_ts)::int as activity_count,
-    COALESCE(SUM(period_data.distance), 0)::int as total_distance_meters,
-    COALESCE(SUM(period_data.elapsed_time), 0)::bigint as total_elapsed_time_seconds,
-    COALESCE(SUM(period_data.moving_time), 0)::bigint as total_moving_time_seconds,
-    COALESCE(SUM(period_data.elev_gain), 0)::int as total_elevation_gain_meters
-FROM all_periods
-LEFT JOIN period_data ON all_periods.period_ts = period_data.period_ts
-GROUP BY all_periods.period_ts
-ORDER BY all_periods.period_ts
+    period_sports.period_ts::date::text as period,
+    period_sports.sport,
+    COALESCE(period_data.activity_count, 0)::int as activity_count,
+    COALESCE(period_data.total_distance_meters, 0)::int as total_distance_meters,
+    COALESCE(period_data.total_elapsed_time_seconds, 0)::bigint as total_elapsed_time_seconds,
+    COALESCE(period_data.total_moving_time_seconds, 0)::bigint as total_moving_time_seconds,
+    COALESCE(period_data.total_elevation_gain_meters, 0)::int as total_elevation_gain_meters
+FROM period_sports
+LEFT JOIN period_data
+    ON period_sports.period_ts = period_data.period_ts
+    AND period_sports.sport = period_data.sport
+ORDER BY period_sports.sport, period_sports.period_ts
 `
 
 type GetAthleteVolumeParams struct {
+	Sports       []string
 	Frequency    string
 	StartDate    time.Time
 	UserID       uuid.UUID
 	ProviderSlug string
-	Sport        string
 }
 
 type GetAthleteVolumeRow struct {
 	Period                   string
+	Sport                    string
 	ActivityCount            int32
 	TotalDistanceMeters      int32
 	TotalElapsedTimeSeconds  int64
@@ -156,11 +172,11 @@ type GetAthleteVolumeRow struct {
 
 func (q *Queries) GetAthleteVolume(ctx context.Context, arg GetAthleteVolumeParams) ([]GetAthleteVolumeRow, error) {
 	rows, err := q.db.QueryContext(ctx, getAthleteVolume,
+		pq.Array(arg.Sports),
 		arg.Frequency,
 		arg.StartDate,
 		arg.UserID,
 		arg.ProviderSlug,
-		arg.Sport,
 	)
 	if err != nil {
 		return nil, err
@@ -171,6 +187,7 @@ func (q *Queries) GetAthleteVolume(ctx context.Context, arg GetAthleteVolumePara
 		var i GetAthleteVolumeRow
 		if err := rows.Scan(
 			&i.Period,
+			&i.Sport,
 			&i.ActivityCount,
 			&i.TotalDistanceMeters,
 			&i.TotalElapsedTimeSeconds,

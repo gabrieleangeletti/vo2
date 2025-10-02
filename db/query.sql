@@ -76,7 +76,11 @@ JOIN vo2.activity_tags t ON at.tag_id = t.id
 WHERE at.activity_id = $1;
 
 -- name: GetAthleteVolume :many
-WITH all_periods AS (
+WITH selected_sports AS (
+    SELECT DISTINCT lower(ss.sport) AS sport
+    FROM unnest(sqlc.arg(sports)::text[]) AS ss(sport)
+),
+all_periods AS (
     SELECT generate_series(
         date_trunc(@frequency::text, @start_date::timestamptz),
         date_trunc(@frequency::text, NOW()),
@@ -87,33 +91,43 @@ WITH all_periods AS (
         END::interval
     ) as period_ts
 ),
+period_sports AS (
+    SELECT ap.period_ts, ss.sport
+    FROM all_periods ap
+    CROSS JOIN selected_sports ss
+),
 period_data AS (
     SELECT
         CASE
-            WHEN @frequency::text = 'day' THEN date_trunc('day', start_time)
-            WHEN @frequency::text = 'week' THEN date_trunc('week', start_time)
-            ELSE date_trunc('month', start_time)
+            WHEN @frequency::text = 'day' THEN date_trunc('day', a.start_time)
+            WHEN @frequency::text = 'week' THEN date_trunc('week', a.start_time)
+            ELSE date_trunc('month', a.start_time)
         END as period_ts,
-        distance,
-        elapsed_time,
-        moving_time,
-        elev_gain
+        lower(a.sport) AS sport,
+        COUNT(*)::int AS activity_count,
+        COALESCE(SUM(a.distance), 0)::int AS total_distance_meters,
+        COALESCE(SUM(a.elapsed_time), 0)::bigint AS total_elapsed_time_seconds,
+        COALESCE(SUM(a.moving_time), 0)::bigint AS total_moving_time_seconds,
+        COALESCE(SUM(a.elev_gain), 0)::int AS total_elevation_gain_meters
     FROM vo2.activities_endurance a
     JOIN vo2.providers p ON a.provider_id = p.id
+    JOIN selected_sports ss ON lower(a.sport) = ss.sport
     WHERE
         a.user_id = @user_id
         AND p.slug = @provider_slug
-        AND lower(a.sport) = lower(@sport)
         AND a.start_time >= @start_date::timestamptz
+    GROUP BY period_ts, lower(a.sport)
 )
 SELECT
-    all_periods.period_ts::date::text as period,
-    COUNT(period_data.period_ts)::int as activity_count,
-    COALESCE(SUM(period_data.distance), 0)::int as total_distance_meters,
-    COALESCE(SUM(period_data.elapsed_time), 0)::bigint as total_elapsed_time_seconds,
-    COALESCE(SUM(period_data.moving_time), 0)::bigint as total_moving_time_seconds,
-    COALESCE(SUM(period_data.elev_gain), 0)::int as total_elevation_gain_meters
-FROM all_periods
-LEFT JOIN period_data ON all_periods.period_ts = period_data.period_ts
-GROUP BY all_periods.period_ts
-ORDER BY all_periods.period_ts;
+    period_sports.period_ts::date::text as period,
+    period_sports.sport,
+    COALESCE(period_data.activity_count, 0)::int as activity_count,
+    COALESCE(period_data.total_distance_meters, 0)::int as total_distance_meters,
+    COALESCE(period_data.total_elapsed_time_seconds, 0)::bigint as total_elapsed_time_seconds,
+    COALESCE(period_data.total_moving_time_seconds, 0)::bigint as total_moving_time_seconds,
+    COALESCE(period_data.total_elevation_gain_meters, 0)::int as total_elevation_gain_meters
+FROM period_sports
+LEFT JOIN period_data
+    ON period_sports.period_ts = period_data.period_ts
+    AND period_sports.sport = period_data.sport
+ORDER BY period_sports.sport, period_sports.period_ts;

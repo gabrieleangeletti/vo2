@@ -65,7 +65,7 @@ type Vo2ActivitiesEndurance struct {
 	Name string
 	// Description of the activity, as given by the original provider.
 	Description sql.NullString
-	// Sport type of the activity. Endurance outdoor activities are: running, cycling, gravel cycling, hiking, and trail running.
+	// Sport type of the activity. Endurance activities are: running, cycling, gravel cycling, hiking, trail running, elliptical, swimming, stair-stepper, and inline-skating.
 	Sport string
 	// Start time of the activity. Measured in UTC.
 	StartTime time.Time

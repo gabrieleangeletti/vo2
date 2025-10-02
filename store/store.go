@@ -2,10 +2,12 @@ package store
 
 import (
 	"context"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 
+	"github.com/gabrieleangeletti/stride"
 	"github.com/gabrieleangeletti/vo2"
 	"github.com/gabrieleangeletti/vo2/activity"
 	"github.com/gabrieleangeletti/vo2/internal/generated/models"
@@ -158,14 +160,19 @@ func (s *dbStore) SaveProviderActivityRawData(ctx context.Context, arg *activity
 	return id, nil
 }
 
-// GetAthleteVolume retrieves volume data for an athlete by provider, frequency, sport, and time range.
-func (s *dbStore) GetAthleteVolume(ctx context.Context, params vo2.GetAthleteVolumeParams) ([]*vo2.AthleteVolumeData, error) {
+// GetAthleteVolume retrieves volume data for an athlete by provider, frequency, sports, and time range.
+func (s *dbStore) GetAthleteVolume(ctx context.Context, params vo2.GetAthleteVolumeParams) (map[stride.Sport][]*vo2.AthleteVolumeData, error) {
+	sports := make([]string, len(params.Sports))
+	for i, sport := range params.Sports {
+		sports[i] = strings.ToLower(string(sport))
+	}
+
 	queryParams := models.GetAthleteVolumeParams{
+		Sports:       sports,
 		Frequency:    params.Frequency,
+		StartDate:    params.StartDate,
 		UserID:       params.UserID,
 		ProviderSlug: params.ProviderSlug,
-		Sport:        string(params.Sport),
-		StartDate:    params.StartDate,
 	}
 
 	res, err := s.q.GetAthleteVolume(ctx, queryParams)
@@ -173,9 +180,14 @@ func (s *dbStore) GetAthleteVolume(ctx context.Context, params vo2.GetAthleteVol
 		return nil, err
 	}
 
-	volumeData := make([]*vo2.AthleteVolumeData, len(res))
-	for i, r := range res {
-		volumeData[i] = &vo2.AthleteVolumeData{
+	volumeData := make(map[stride.Sport][]*vo2.AthleteVolumeData, len(params.Sports))
+	for _, sport := range params.Sports {
+		volumeData[sport] = make([]*vo2.AthleteVolumeData, 0)
+	}
+
+	for _, r := range res {
+		sport := stride.Sport(r.Sport)
+		entry := &vo2.AthleteVolumeData{
 			Period:                   r.Period,
 			ActivityCount:            r.ActivityCount,
 			TotalDistanceMeters:      r.TotalDistanceMeters,
@@ -183,6 +195,8 @@ func (s *dbStore) GetAthleteVolume(ctx context.Context, params vo2.GetAthleteVol
 			TotalMovingTimeSeconds:   r.TotalMovingTimeSeconds,
 			TotalElevationGainMeters: r.TotalElevationGainMeters,
 		}
+
+		volumeData[sport] = append(volumeData[sport], entry)
 	}
 
 	return volumeData, nil

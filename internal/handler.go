@@ -11,6 +11,7 @@ import (
 	"os"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/httplog/v3"
@@ -561,9 +562,9 @@ func athleteVolumeHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter
 		provider := r.URL.Query().Get("provider")
 		frequency := r.URL.Query().Get("frequency")
 		startDate := r.URL.Query().Get("startDate")
-		sportQ := r.URL.Query().Get("sport")
+		sportParams := r.URL.Query()["sport"]
 
-		if provider == "" || frequency == "" || startDate == "" || sportQ == "" {
+		if provider == "" || frequency == "" || startDate == "" || len(sportParams) == 0 {
 			http.Error(w, "Missing required query parameters: provider, frequency, startDate, sport", http.StatusBadRequest)
 			return
 		}
@@ -579,14 +580,41 @@ func athleteVolumeHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter
 			return
 		}
 
-		sport, err := stride.ParseSport(sportQ)
-		if err != nil {
-			http.Error(w, "Invalid sport", http.StatusBadRequest)
-			return
+		sportsSeen := make(map[stride.Sport]struct{})
+		sports := make([]stride.Sport, 0)
+		sportStrings := make([]string, 0)
+
+		for _, raw := range sportParams {
+			for part := range strings.SplitSeq(raw, ",") {
+				s := strings.TrimSpace(part)
+				if s == "" {
+					continue
+				}
+
+				s = strings.ToLower(s)
+				sport, err := stride.ParseSport(s)
+				if err != nil {
+					http.Error(w, "Invalid sport", http.StatusBadRequest)
+					return
+				}
+
+				if !stride.IsEnduranceActivity(sport) {
+					http.Error(w, "Invalid sport, must be an endurance activity", http.StatusBadRequest)
+					return
+				}
+
+				if _, exists := sportsSeen[sport]; exists {
+					continue
+				}
+
+				sportsSeen[sport] = struct{}{}
+				sports = append(sports, sport)
+				sportStrings = append(sportStrings, string(sport))
+			}
 		}
 
-		if !stride.IsEnduranceActivity(sport) {
-			http.Error(w, "Invalid sport, must be an endurance activity", http.StatusBadRequest)
+		if len(sports) == 0 {
+			http.Error(w, "At least one sport must be provided", http.StatusBadRequest)
 			return
 		}
 
@@ -594,7 +622,7 @@ func athleteVolumeHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter
 			Frequency:    frequency,
 			UserID:       user.ID,
 			ProviderSlug: provider,
-			Sport:        sport,
+			Sports:       sports,
 			StartDate:    startDateTime,
 		}
 
@@ -605,13 +633,24 @@ func athleteVolumeHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter
 			return
 		}
 
+		dataBySport := make(map[string][]*vo2.AthleteVolumeData, len(sports))
+		for _, sport := range sports {
+			series, ok := volumeData[sport]
+			if !ok || series == nil {
+				dataBySport[string(sport)] = []*vo2.AthleteVolumeData{}
+				continue
+			}
+
+			dataBySport[string(sport)] = series
+		}
+
 		response := map[string]any{
 			"userId":    user.ID,
 			"provider":  provider,
 			"frequency": frequency,
-			"sport":     sport,
+			"sports":    sportStrings,
 			"startDate": startDateTime.Format("2006-01-02"),
-			"data":      volumeData,
+			"data":      dataBySport,
 		}
 
 		w.Header().Set("Content-Type", "application/json")

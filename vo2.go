@@ -20,11 +20,11 @@ type AthleteVolumeData struct {
 }
 
 type GetAthleteVolumeParams struct {
-	Frequency    string       `json:"frequency"`
-	UserID       uuid.UUID    `json:"userId"`
-	ProviderSlug string       `json:"providerSlug"`
-	Sport        stride.Sport `json:"sport"`
-	StartDate    time.Time    `json:"startDate"`
+	Frequency    string         `json:"frequency"`
+	UserID       uuid.UUID      `json:"userId"`
+	ProviderSlug string         `json:"providerSlug"`
+	Sports       []stride.Sport `json:"sports"`
+	StartDate    time.Time      `json:"startDate"`
 }
 
 // Reader defines the interface for read-only database operations.
@@ -33,7 +33,7 @@ type Reader interface {
 	GetActivityEndurance(ctx context.Context, id uuid.UUID) (*activity.EnduranceActivity, error)
 	ListActivitiesEnduranceByTag(ctx context.Context, providerID int, userID uuid.UUID, tag string) ([]*activity.EnduranceActivity, error)
 	GetActivityTags(ctx context.Context, activityID uuid.UUID) ([]*activity.ActivityTag, error)
-	GetAthleteVolume(ctx context.Context, params GetAthleteVolumeParams) ([]*AthleteVolumeData, error)
+	GetAthleteVolume(ctx context.Context, params GetAthleteVolumeParams) (map[stride.Sport][]*AthleteVolumeData, error)
 }
 
 // Store defines the interface for read and write database operations.
