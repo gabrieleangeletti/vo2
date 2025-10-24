@@ -35,6 +35,15 @@ func NewStore(db *sqlx.DB) vo2.Store {
 	}
 }
 
+func (s *dbStore) GetAthleteCurrentMeasurements(ctx context.Context, athleteID uuid.UUID) (*vo2.AthleteCurrentMeasurements, error) {
+	res, err := s.q.GetAthleteCurrentMeasurements(ctx, athleteID)
+	if err != nil {
+		return nil, err
+	}
+
+	return newAthleteCurrentMeasurements(res), nil
+}
+
 // UpsertActivityEndurance inserts or updates an endurance activity.
 func (s *dbStore) UpsertActivityEndurance(ctx context.Context, arg *activity.EnduranceActivity) (*activity.EnduranceActivity, error) {
 	res, err := s.q.UpsertActivityEndurance(ctx, arg.ToUpsertParams())

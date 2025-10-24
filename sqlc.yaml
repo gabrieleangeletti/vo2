@@ -26,3 +26,11 @@ sql:
             nullable: true
             go_type:
               type: "sql.NullInt32"
+          - db_type: "pg_catalog.numeric"
+            nullable: false
+            go_type:
+              type: "float64"
+          - db_type: "pg_catalog.numeric"
+            nullable: true
+            go_type:
+              type: "sql.NullFloat64"

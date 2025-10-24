@@ -85,25 +85,25 @@ SELECT
 
     lt1.value AS lt1_value,
     lt1.measured_at AS lt1_measured_at,
-    lt1.iana_timezone AS lt1_timezone,
+    lt1.iana_timezone AS lt1_iana_timezone,
     lt1.source AS lt1_source,
     lt1.notes AS lt1_notes,
 
     lt2.value AS lt2_value,
     lt2.measured_at AS lt2_measured_at,
-    lt2.iana_timezone AS lt2_timezone,
+    lt2.iana_timezone AS lt2_iana_timezone,
     lt2.source AS lt2_source,
     lt2.notes AS lt2_notes,
 
     vo2max.value AS vo2max_value,
     vo2max.measured_at AS vo2max_measured_at,
-    vo2max.iana_timezone AS vo2max_timezone,
+    vo2max.iana_timezone AS vo2max_iana_timezone,
     vo2max.source AS vo2max_source,
     vo2max.notes AS vo2max_notes,
 
     weight.value AS weight_value,
     weight.measured_at AS weight_measured_at,
-    weight.iana_timezone AS weight_timezone,
+    weight.iana_timezone AS weight_iana_timezone,
     weight.source AS weight_source,
     weight.notes AS weight_notes
 

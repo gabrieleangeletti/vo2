@@ -50,11 +50,41 @@ DO UPDATE SET
 	fit_file_uri = @fit_file_uri
 RETURNING *;
 
+-- name: UpsertActivityThresholdAnalysis :one
+INSERT INTO vo2.activities_threshold_analysis (
+	activity_endurance_id,
+	time_at_lt1_threshold,
+	time_at_lt2_threshold,
+	raw_analysis
+)
+VALUES (
+	@activity_endurance_id,
+	@time_at_lt1_threshold,
+	@time_at_lt2_threshold,
+	@raw_analysis
+)
+ON CONFLICT
+	(activity_endurance_id)
+DO UPDATE SET
+	time_at_lt1_threshold = @time_at_lt1_threshold,
+	time_at_lt2_threshold = @time_at_lt2_threshold,
+	raw_analysis = @raw_analysis
+RETURNING *;
+
+-- name: GetAthleteCurrentMeasurements :one
+SELECT
+    *
+FROM
+    vo2.athlete_current_measurements
+WHERE
+    athlete_id = @athlete_id;
+
 -- name: GetActivityEndurance :one
 SELECT
 	a.*
 FROM vo2.activities_endurance a
-WHERE a.id = $1;
+WHERE
+    a.id = $1;
 
 -- name: ListActivitiesEnduranceByTag :many
 SELECT
@@ -73,7 +103,8 @@ SELECT
 FROM
 vo2.activities_endurance_tags at
 JOIN vo2.activity_tags t ON at.tag_id = t.id
-WHERE at.activity_id = $1;
+WHERE
+    at.activity_id = $1;
 
 -- name: GetAthleteVolume :many
 WITH selected_sports AS (

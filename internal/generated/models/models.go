@@ -14,6 +14,136 @@ import (
 	"github.com/google/uuid"
 )
 
+type Gender string
+
+const (
+	GenderMale   Gender = "male"
+	GenderFemale Gender = "female"
+	GenderOther  Gender = "other"
+)
+
+func (e *Gender) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = Gender(s)
+	case string:
+		*e = Gender(s)
+	default:
+		return fmt.Errorf("unsupported scan type for Gender: %T", src)
+	}
+	return nil
+}
+
+type NullGender struct {
+	Gender Gender
+	Valid  bool // Valid is true if Gender is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullGender) Scan(value interface{}) error {
+	if value == nil {
+		ns.Gender, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.Gender.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullGender) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.Gender), nil
+}
+
+type Vo2AthleteMeasurementSource string
+
+const (
+	Vo2AthleteMeasurementSourceLabTest   Vo2AthleteMeasurementSource = "lab_test"
+	Vo2AthleteMeasurementSourceFieldTest Vo2AthleteMeasurementSource = "field_test"
+	Vo2AthleteMeasurementSourceManual    Vo2AthleteMeasurementSource = "manual"
+)
+
+func (e *Vo2AthleteMeasurementSource) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = Vo2AthleteMeasurementSource(s)
+	case string:
+		*e = Vo2AthleteMeasurementSource(s)
+	default:
+		return fmt.Errorf("unsupported scan type for Vo2AthleteMeasurementSource: %T", src)
+	}
+	return nil
+}
+
+type NullVo2AthleteMeasurementSource struct {
+	Vo2AthleteMeasurementSource Vo2AthleteMeasurementSource
+	Valid                       bool // Valid is true if Vo2AthleteMeasurementSource is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullVo2AthleteMeasurementSource) Scan(value interface{}) error {
+	if value == nil {
+		ns.Vo2AthleteMeasurementSource, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.Vo2AthleteMeasurementSource.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullVo2AthleteMeasurementSource) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.Vo2AthleteMeasurementSource), nil
+}
+
+type Vo2AthleteMeasurementType string
+
+const (
+	Vo2AthleteMeasurementTypeLt1    Vo2AthleteMeasurementType = "lt1"
+	Vo2AthleteMeasurementTypeLt2    Vo2AthleteMeasurementType = "lt2"
+	Vo2AthleteMeasurementTypeVo2max Vo2AthleteMeasurementType = "vo2max"
+	Vo2AthleteMeasurementTypeWeight Vo2AthleteMeasurementType = "weight"
+)
+
+func (e *Vo2AthleteMeasurementType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = Vo2AthleteMeasurementType(s)
+	case string:
+		*e = Vo2AthleteMeasurementType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for Vo2AthleteMeasurementType: %T", src)
+	}
+	return nil
+}
+
+type NullVo2AthleteMeasurementType struct {
+	Vo2AthleteMeasurementType Vo2AthleteMeasurementType
+	Valid                     bool // Valid is true if Vo2AthleteMeasurementType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullVo2AthleteMeasurementType) Scan(value interface{}) error {
+	if value == nil {
+		ns.Vo2AthleteMeasurementType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.Vo2AthleteMeasurementType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullVo2AthleteMeasurementType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.Vo2AthleteMeasurementType), nil
+}
+
 type Vo2ProviderConnectionType string
 
 const (
@@ -109,6 +239,17 @@ type Vo2ActivitiesEnduranceTag struct {
 	TagID      int32
 }
 
+type Vo2ActivitiesThresholdAnalysis struct {
+	ID                  int32
+	ActivityEnduranceID uuid.UUID
+	TimeAtLt1Threshold  int32
+	TimeAtLt2Threshold  int32
+	RawAnalysis         json.RawMessage
+	CreatedAt           sql.NullTime
+	UpdatedAt           sql.NullTime
+	DeletedAt           sql.NullTime
+}
+
 type Vo2ActivityTag struct {
 	ID          int32
 	Name        string
@@ -116,6 +257,60 @@ type Vo2ActivityTag struct {
 	CreatedAt   sql.NullTime
 	UpdatedAt   sql.NullTime
 	DeletedAt   sql.NullTime
+}
+
+type Vo2Athlete struct {
+	ID          uuid.UUID
+	UserID      uuid.UUID
+	Age         int16
+	HeightCm    int16
+	Country     string
+	Gender      Gender
+	FirstName   string
+	LastName    string
+	DisplayName string
+	Email       string
+	CreatedAt   sql.NullTime
+	UpdatedAt   sql.NullTime
+	DeletedAt   sql.NullTime
+}
+
+type Vo2AthleteCurrentMeasurement struct {
+	AthleteID          uuid.UUID
+	Lt1Value           sql.NullFloat64
+	Lt1MeasuredAt      sql.NullTime
+	Lt1IanaTimezone    sql.NullString
+	Lt1Source          NullVo2AthleteMeasurementSource
+	Lt1Notes           sql.NullString
+	Lt2Value           sql.NullFloat64
+	Lt2MeasuredAt      sql.NullTime
+	Lt2IanaTimezone    sql.NullString
+	Lt2Source          NullVo2AthleteMeasurementSource
+	Lt2Notes           sql.NullString
+	Vo2maxValue        sql.NullFloat64
+	Vo2maxMeasuredAt   sql.NullTime
+	Vo2maxIanaTimezone sql.NullString
+	Vo2maxSource       NullVo2AthleteMeasurementSource
+	Vo2maxNotes        sql.NullString
+	WeightValue        sql.NullFloat64
+	WeightMeasuredAt   sql.NullTime
+	WeightIanaTimezone sql.NullString
+	WeightSource       NullVo2AthleteMeasurementSource
+	WeightNotes        sql.NullString
+}
+
+type Vo2AthleteMeasurementHistory struct {
+	ID           uuid.UUID
+	AthleteID    uuid.UUID
+	MeasuredAt   time.Time
+	IanaTimezone string
+	MetricType   Vo2AthleteMeasurementType
+	Value        float64
+	Source       Vo2AthleteMeasurementSource
+	Notes        sql.NullString
+	CreatedAt    sql.NullTime
+	UpdatedAt    sql.NullTime
+	DeletedAt    sql.NullTime
 }
 
 type Vo2Provider struct {

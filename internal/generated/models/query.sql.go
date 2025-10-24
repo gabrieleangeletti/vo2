@@ -8,6 +8,7 @@ package models
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,7 +19,8 @@ const getActivityEndurance = `-- name: GetActivityEndurance :one
 SELECT
 	a.id, a.provider_id, a.user_id, a.provider_raw_activity_id, a.name, a.description, a.sport, a.start_time, a.end_time, a.iana_timezone, a.utc_offset, a.elapsed_time, a.moving_time, a.distance, a.elev_gain, a.elev_loss, a.avg_speed, a.avg_hr, a.max_hr, a.summary_polyline, a.summary_route, a.gpx_file_uri, a.fit_file_uri, a.created_at, a.updated_at, a.deleted_at
 FROM vo2.activities_endurance a
-WHERE a.id = $1
+WHERE
+    a.id = $1
 `
 
 func (q *Queries) GetActivityEndurance(ctx context.Context, id uuid.UUID) (Vo2ActivitiesEndurance, error) {
@@ -61,7 +63,8 @@ SELECT
 FROM
 vo2.activities_endurance_tags at
 JOIN vo2.activity_tags t ON at.tag_id = t.id
-WHERE at.activity_id = $1
+WHERE
+    at.activity_id = $1
 `
 
 func (q *Queries) GetActivityTags(ctx context.Context, activityID uuid.UUID) ([]Vo2ActivityTag, error) {
@@ -92,6 +95,44 @@ func (q *Queries) GetActivityTags(ctx context.Context, activityID uuid.UUID) ([]
 		return nil, err
 	}
 	return items, nil
+}
+
+const getAthleteCurrentMeasurements = `-- name: GetAthleteCurrentMeasurements :one
+SELECT
+    athlete_id, lt1_value, lt1_measured_at, lt1_iana_timezone, lt1_source, lt1_notes, lt2_value, lt2_measured_at, lt2_iana_timezone, lt2_source, lt2_notes, vo2max_value, vo2max_measured_at, vo2max_iana_timezone, vo2max_source, vo2max_notes, weight_value, weight_measured_at, weight_iana_timezone, weight_source, weight_notes
+FROM
+    vo2.athlete_current_measurements
+WHERE
+    athlete_id = $1
+`
+
+func (q *Queries) GetAthleteCurrentMeasurements(ctx context.Context, athleteID uuid.UUID) (Vo2AthleteCurrentMeasurement, error) {
+	row := q.db.QueryRowContext(ctx, getAthleteCurrentMeasurements, athleteID)
+	var i Vo2AthleteCurrentMeasurement
+	err := row.Scan(
+		&i.AthleteID,
+		&i.Lt1Value,
+		&i.Lt1MeasuredAt,
+		&i.Lt1IanaTimezone,
+		&i.Lt1Source,
+		&i.Lt1Notes,
+		&i.Lt2Value,
+		&i.Lt2MeasuredAt,
+		&i.Lt2IanaTimezone,
+		&i.Lt2Source,
+		&i.Lt2Notes,
+		&i.Vo2maxValue,
+		&i.Vo2maxMeasuredAt,
+		&i.Vo2maxIanaTimezone,
+		&i.Vo2maxSource,
+		&i.Vo2maxNotes,
+		&i.WeightValue,
+		&i.WeightMeasuredAt,
+		&i.WeightIanaTimezone,
+		&i.WeightSource,
+		&i.WeightNotes,
+	)
+	return i, err
 }
 
 const getAthleteVolume = `-- name: GetAthleteVolume :many
@@ -403,6 +444,56 @@ func (q *Queries) UpsertActivityEndurance(ctx context.Context, arg UpsertActivit
 		&i.SummaryRoute,
 		&i.GpxFileUri,
 		&i.FitFileUri,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const upsertActivityThresholdAnalysis = `-- name: UpsertActivityThresholdAnalysis :one
+INSERT INTO vo2.activities_threshold_analysis (
+	activity_endurance_id,
+	time_at_lt1_threshold,
+	time_at_lt2_threshold,
+	raw_analysis
+)
+VALUES (
+	$1,
+	$2,
+	$3,
+	$4
+)
+ON CONFLICT
+	(activity_endurance_id)
+DO UPDATE SET
+	time_at_lt1_threshold = $2,
+	time_at_lt2_threshold = $3,
+	raw_analysis = $4
+RETURNING id, activity_endurance_id, time_at_lt1_threshold, time_at_lt2_threshold, raw_analysis, created_at, updated_at, deleted_at
+`
+
+type UpsertActivityThresholdAnalysisParams struct {
+	ActivityEnduranceID uuid.UUID
+	TimeAtLt1Threshold  int32
+	TimeAtLt2Threshold  int32
+	RawAnalysis         json.RawMessage
+}
+
+func (q *Queries) UpsertActivityThresholdAnalysis(ctx context.Context, arg UpsertActivityThresholdAnalysisParams) (Vo2ActivitiesThresholdAnalysis, error) {
+	row := q.db.QueryRowContext(ctx, upsertActivityThresholdAnalysis,
+		arg.ActivityEnduranceID,
+		arg.TimeAtLt1Threshold,
+		arg.TimeAtLt2Threshold,
+		arg.RawAnalysis,
+	)
+	var i Vo2ActivitiesThresholdAnalysis
+	err := row.Scan(
+		&i.ID,
+		&i.ActivityEnduranceID,
+		&i.TimeAtLt1Threshold,
+		&i.TimeAtLt2Threshold,
+		&i.RawAnalysis,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
