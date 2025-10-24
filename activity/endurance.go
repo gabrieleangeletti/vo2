@@ -21,7 +21,7 @@ import (
 type ProviderActivityRawData struct {
 	ID                  uuid.UUID       `json:"id" db:"id"`
 	ProviderID          int             `json:"providerId" db:"provider_id"`
-	UserID              uuid.UUID       `json:"userId" db:"user_id"`
+	AthleteID           uuid.UUID       `json:"athleteId" db:"athlete_id"`
 	ProviderActivityID  string          `json:"providerActivityId" db:"provider_activity_id"`
 	StartTime           time.Time       `json:"startTime" db:"start_time"`
 	ElapsedTime         int             `json:"elapsedTime" db:"elapsed_time"`
@@ -75,7 +75,7 @@ func (a *ProviderActivityRawData) ToEnduranceActivity(providerMap map[int]provid
 
 		enduranceActivity := &EnduranceActivity{
 			ProviderID:            a.ProviderID,
-			UserID:                a.UserID,
+			AthleteID:             a.AthleteID,
 			ProviderRawActivityID: a.ID,
 			Name:                  act.Name,
 			Description:           act.Description,
@@ -112,11 +112,11 @@ func (a *ProviderActivityRawData) ToEnduranceActivity(providerMap map[int]provid
 func (a *ProviderActivityRawData) Save(ctx context.Context, db *sqlx.DB) error {
 	_, err := db.ExecContext(ctx, `
 	INSERT INTO vo2.provider_activity_raw_data
-		(provider_id, user_id, provider_activity_id, start_time, elapsed_time, iana_timezone, utc_offset, data, detailed_activity_uri)
+		(provider_id, athlete_id, provider_activity_id, start_time, elapsed_time, iana_timezone, utc_offset, data, detailed_activity_uri)
 	VALUES
 		($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	ON CONFLICT
-		(provider_id, user_id, provider_activity_id)
+		(provider_id, athlete_id, provider_activity_id)
 	DO UPDATE SET
 		start_time = $4,
 		elapsed_time = $5,
@@ -125,7 +125,7 @@ func (a *ProviderActivityRawData) Save(ctx context.Context, db *sqlx.DB) error {
 		data = $8,
 		detailed_activity_uri = $9
 	`,
-		a.ProviderID, a.UserID, a.ProviderActivityID, a.StartTime, a.ElapsedTime, a.IanaTimezone, a.UTCOffset, a.Data, a.DetailedActivityURI,
+		a.ProviderID, a.AthleteID, a.ProviderActivityID, a.StartTime, a.ElapsedTime, a.IanaTimezone, a.UTCOffset, a.Data, a.DetailedActivityURI,
 	)
 	if err != nil {
 		return err
@@ -134,13 +134,13 @@ func (a *ProviderActivityRawData) Save(ctx context.Context, db *sqlx.DB) error {
 	return nil
 }
 
-func GetProviderActivityRawData(ctx context.Context, db *sqlx.DB, providerID int, userID uuid.UUID) ([]*ProviderActivityRawData, error) {
+func GetProviderActivityRawData(ctx context.Context, db *sqlx.DB, providerID int, athleteID uuid.UUID) ([]*ProviderActivityRawData, error) {
 	var data []*ProviderActivityRawData
 
 	err := db.SelectContext(ctx, &data, `
 	SELECT * FROM vo2.provider_activity_raw_data
-	WHERE provider_id = $1 AND user_id = $2
-	`, providerID, userID)
+	WHERE provider_id = $1 AND athlete_id = $2
+	`, providerID, athleteID)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +151,7 @@ func GetProviderActivityRawData(ctx context.Context, db *sqlx.DB, providerID int
 type EnduranceActivity struct {
 	ID                    uuid.UUID    `json:"id"`
 	ProviderID            int          `json:"providerId"`
-	UserID                uuid.UUID    `json:"userId"`
+	AthleteID             uuid.UUID    `json:"athleteId"`
 	ProviderRawActivityID uuid.UUID    `json:"providerRawActivityId"`
 	Name                  string       `json:"name"`
 	Description           string       `json:"description,omitzero"`
@@ -204,7 +204,7 @@ func NewEnduranceActivity(a models.Vo2ActivitiesEndurance) *EnduranceActivity {
 	return &EnduranceActivity{
 		ID:                    a.ID,
 		ProviderID:            int(a.ProviderID),
-		UserID:                a.UserID,
+		AthleteID:             a.AthleteID,
 		ProviderRawActivityID: a.ProviderRawActivityID,
 		Name:                  a.Name,
 		Description:           a.Description.String,
@@ -250,7 +250,7 @@ func (a *EnduranceActivity) ExtractActivityTags() []*ActivityTag {
 func (a *EnduranceActivity) ToUpsertParams() models.UpsertActivityEnduranceParams {
 	return models.UpsertActivityEnduranceParams{
 		ProviderID:            int32(a.ProviderID),
-		UserID:                a.UserID,
+		AthleteID:             a.AthleteID,
 		ProviderRawActivityID: a.ProviderRawActivityID,
 		Name:                  a.Name,
 		Description:           sql.NullString{String: a.Description, Valid: true},
@@ -271,5 +271,35 @@ func (a *EnduranceActivity) ToUpsertParams() models.UpsertActivityEnduranceParam
 		SummaryRoute:          a.SummaryRoute,
 		GpxFileUri:            sql.NullString{String: a.GpxFileURI, Valid: true},
 		FitFileUri:            sql.NullString{String: a.FitFileURI, Valid: true},
+	}
+}
+
+type ThresholdAnalysis struct {
+	ID                  int             `json:"id"`
+	ActivityEnduranceID uuid.UUID       `json:"activity_endurance_id"`
+	TimeAtLt1Threshold  int32           `json:"time_at_lt1_threshold"`
+	TimeAtLt2Threshold  int32           `json:"time_at_lt2_threshold"`
+	RawAnalysis         json.RawMessage `json:"raw_analysis"`
+	CreatedAt           time.Time       `json:"createdAt"`
+	UpdatedAt           time.Time       `json:"updatedAt,omitzero"`
+	DeletedAt           time.Time       `json:"deletedAt,omitzero"`
+}
+
+func (a *ThresholdAnalysis) ToUpsertParams() models.UpsertActivityThresholdAnalysisParams {
+	return models.UpsertActivityThresholdAnalysisParams{
+		ActivityEnduranceID: a.ActivityEnduranceID,
+		TimeAtLt1Threshold:  a.TimeAtLt1Threshold,
+		TimeAtLt2Threshold:  a.TimeAtLt2Threshold,
+		RawAnalysis:         a.RawAnalysis,
+	}
+}
+
+func NewActivityThresholdAnalysis(a models.Vo2ActivitiesThresholdAnalysis) *ThresholdAnalysis {
+	return &ThresholdAnalysis{
+		ID:                  int(a.ID),
+		ActivityEnduranceID: a.ActivityEnduranceID,
+		TimeAtLt1Threshold:  a.TimeAtLt1Threshold,
+		TimeAtLt2Threshold:  a.TimeAtLt2Threshold,
+		RawAnalysis:         a.RawAnalysis,
 	}
 }

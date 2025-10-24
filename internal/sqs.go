@@ -18,7 +18,7 @@ const (
 )
 
 type HistoricalDataTask struct {
-	UserID     uuid.UUID              `json:"userId"`
+	AthleteID  uuid.UUID              `json:"athleteId"`
 	ProviderID int                    `json:"providerId"`
 	Type       HistoricalDataTaskType `json:"type"`
 	StartTime  time.Time              `json:"startTime"`
@@ -54,7 +54,7 @@ func (s *SQSClient) SendHistoricalDataTask(ctx context.Context, task HistoricalD
 	_, err = s.client.SendMessage(ctx, &sqs.SendMessageInput{
 		QueueUrl:       aws.String(s.queueURL),
 		MessageBody:    aws.String(string(taskJSON)),
-		MessageGroupId: aws.String(task.UserID.String()),
+		MessageGroupId: aws.String(task.AthleteID.String()),
 	})
 	if err != nil {
 		return err

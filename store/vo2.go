@@ -5,6 +5,21 @@ import (
 	"github.com/gabrieleangeletti/vo2/internal/generated/models"
 )
 
+func newAthlete(m models.Vo2Athlete) *vo2.Athlete {
+	return &vo2.Athlete{
+		ID:          m.ID,
+		UserID:      m.UserID,
+		Age:         m.Age,
+		HeightCm:    m.HeightCm,
+		Country:     m.Country,
+		Gender:      vo2.Gender(m.Gender),
+		FirstName:   m.FirstName,
+		LastName:    m.LastName,
+		DisplayName: m.DisplayName,
+		Email:       m.Email,
+	}
+}
+
 func newAthleteCurrentMeasurements(m models.Vo2AthleteCurrentMeasurement) *vo2.AthleteCurrentMeasurements {
 	return &vo2.AthleteCurrentMeasurements{
 		AthleteID:        m.AthleteID,

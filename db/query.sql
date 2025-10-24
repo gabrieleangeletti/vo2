@@ -1,10 +1,10 @@
 -- name: UpsertActivityEndurance :one
 INSERT INTO vo2.activities_endurance
-	(provider_id, user_id, provider_raw_activity_id, name, description, sport, start_time, end_time, iana_timezone, utc_offset, elapsed_time, moving_time, distance, elev_gain, elev_loss, avg_speed, avg_hr, max_hr, summary_polyline, summary_route, gpx_file_uri, fit_file_uri)
+	(provider_id, athlete_id, provider_raw_activity_id, name, description, sport, start_time, end_time, iana_timezone, utc_offset, elapsed_time, moving_time, distance, elev_gain, elev_loss, avg_speed, avg_hr, max_hr, summary_polyline, summary_route, gpx_file_uri, fit_file_uri)
 VALUES
 	(
     	@provider_id,
-    	@user_id,
+    	@athlete_id,
     	@provider_raw_activity_id,
     	@name,
     	@description,
@@ -27,7 +27,7 @@ VALUES
     	@fit_file_uri
 )
 ON CONFLICT
-	(provider_id, user_id, provider_raw_activity_id)
+	(provider_id, athlete_id, provider_raw_activity_id)
 DO UPDATE SET
 	name = @name,
 	description = @description,
@@ -86,6 +86,16 @@ FROM vo2.activities_endurance a
 WHERE
     a.id = $1;
 
+-- name: ListAthleteActivitiesEndurance :many
+SELECT
+	*
+FROM vo2.activities_endurance
+WHERE
+	provider_id = sqlc.arg(provider_id) AND
+	athlete_id = sqlc.arg(athlete_id)
+ORDER BY
+    start_time DESC;
+
 -- name: ListActivitiesEnduranceByTag :many
 SELECT
 	a.*
@@ -94,8 +104,10 @@ JOIN vo2.activities_endurance_tags at ON at.activity_id = a.id
 JOIN vo2.activity_tags t ON at.tag_id = t.id
 WHERE
 	a.provider_id = sqlc.arg(provider_id) AND
-	a.user_id = sqlc.arg(user_id) AND
-	lower(t.name) = lower(sqlc.arg(tag));
+	a.athlete_id = sqlc.arg(athlete_id) AND
+	lower(t.name) = lower(sqlc.arg(tag))
+ORDER BY
+    a.start_time DESC;
 
 -- name: GetActivityTags :many
 SELECT
@@ -105,6 +117,46 @@ vo2.activities_endurance_tags at
 JOIN vo2.activity_tags t ON at.tag_id = t.id
 WHERE
     at.activity_id = $1;
+
+-- name: UpsertAthlete :one
+INSERT INTO vo2.athletes
+    (user_id, age, height_cm, country, gender, first_name, last_name, display_name, email)
+VALUES (
+	@user_id,
+	@age,
+	@height_cm,
+	@country,
+	@gender,
+	@first_name,
+	@last_name,
+	@display_name,
+	@email)
+ON CONFLICT (user_id) DO UPDATE SET
+	age = @age,
+	height_cm = @height_cm,
+	country = @country,
+	gender = @gender,
+	first_name = @first_name,
+	last_name = @last_name,
+	display_name = @display_name,
+	email = @email
+RETURNING *;
+
+-- name: GetAthleteByID :one
+SELECT
+    *
+FROM
+    vo2.athletes
+WHERE
+    id = $1;
+
+-- name: GetUserAthletes :many
+SELECT
+    *
+FROM
+    vo2.athletes
+WHERE
+    user_id = @user_id;
 
 -- name: GetAthleteVolume :many
 WITH selected_sports AS (
@@ -144,7 +196,7 @@ period_data AS (
     JOIN vo2.providers p ON a.provider_id = p.id
     JOIN selected_sports ss ON lower(a.sport) = ss.sport
     WHERE
-        a.user_id = @user_id
+        a.athlete_id = @athlete_id
         AND p.slug = @provider_slug
         AND a.start_time >= @start_date::timestamptz
     GROUP BY period_ts, lower(a.sport)

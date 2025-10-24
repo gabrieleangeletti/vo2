@@ -1,7 +1,7 @@
 CREATE TABLE vo2.provider_activity_raw_data (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     provider_id INT NOT NULL,
-    user_id UUID NOT NULL,
+    athlete_id UUID NOT NULL,
     provider_activity_id VARCHAR(255) NOT NULL,
     start_time TIMESTAMP NOT NULL,
     elapsed_time INT NOT NULL,
@@ -14,10 +14,10 @@ CREATE TABLE vo2.provider_activity_raw_data (
     updated_at TIMESTAMP,
     deleted_at TIMESTAMP,
 
-    UNIQUE (provider_id, user_id, provider_activity_id),
+    UNIQUE (provider_id, athlete_id, provider_activity_id),
 
     FOREIGN KEY (provider_id) REFERENCES vo2.providers (id),
-    FOREIGN KEY (user_id) REFERENCES vo2.users (id),
+    FOREIGN KEY (athlete_id) REFERENCES vo2.athletes (id),
 
     CHECK (iana_timezone IS NOT NULL OR utc_offset IS NOT NULL)
 );

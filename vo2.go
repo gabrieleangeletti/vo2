@@ -8,6 +8,7 @@ import (
 
 	"github.com/gabrieleangeletti/stride"
 	"github.com/gabrieleangeletti/vo2/activity"
+	"github.com/gabrieleangeletti/vo2/internal/generated/models"
 )
 
 type AthleteMeasurementSource string
@@ -17,6 +18,41 @@ const (
 	AthleteMeasurementSourceFieldTest AthleteMeasurementSource = "field_test"
 	AthleteMeasurementSourceManual    AthleteMeasurementSource = "manual"
 )
+
+type Gender string
+
+const (
+	GenderMale   Gender = "male"
+	GenderFemale Gender = "female"
+	GenderOther  Gender = "other"
+)
+
+type Athlete struct {
+	ID          uuid.UUID `json:"id"`
+	UserID      uuid.UUID `json:"userID"`
+	Age         int16     `json:"age"`
+	HeightCm    int16     `json:"heightCm"`
+	Country     string    `json:"country"`
+	Gender      Gender    `json:"gender"`
+	FirstName   string    `json:"firstName"`
+	LastName    string    `json:"lastName"`
+	DisplayName string    `json:"displayName"`
+	Email       string    `json:"email"`
+}
+
+func (a *Athlete) ToUpsertParams() models.UpsertAthleteParams {
+	return models.UpsertAthleteParams{
+		UserID:      a.UserID,
+		Age:         a.Age,
+		HeightCm:    a.HeightCm,
+		Country:     a.Country,
+		Gender:      models.Gender(a.Gender),
+		FirstName:   a.FirstName,
+		LastName:    a.LastName,
+		DisplayName: a.DisplayName,
+		Email:       a.Email,
+	}
+}
 
 type AthleteCurrentMeasurements struct {
 	AthleteID        uuid.UUID                `json:"athleteID" db:"athlete_id"`
@@ -53,7 +89,7 @@ type AthleteVolumeData struct {
 
 type GetAthleteVolumeParams struct {
 	Frequency    string         `json:"frequency"`
-	UserID       uuid.UUID      `json:"userId"`
+	AthleteID    uuid.UUID      `json:"athleteId"`
 	ProviderSlug string         `json:"providerSlug"`
 	Sports       []stride.Sport `json:"sports"`
 	StartDate    time.Time      `json:"startDate"`
@@ -63,8 +99,11 @@ type GetAthleteVolumeParams struct {
 // It's implemented by DBStore.
 type Reader interface {
 	GetActivityEndurance(ctx context.Context, id uuid.UUID) (*activity.EnduranceActivity, error)
-	ListActivitiesEnduranceByTag(ctx context.Context, providerID int, userID uuid.UUID, tag string) ([]*activity.EnduranceActivity, error)
+	ListAthleteActivitiesEndurance(ctx context.Context, providerID int, athleteID uuid.UUID) ([]*activity.EnduranceActivity, error)
+	ListActivitiesEnduranceByTag(ctx context.Context, providerID int, athleteID uuid.UUID, tag string) ([]*activity.EnduranceActivity, error)
 	GetActivityTags(ctx context.Context, activityID uuid.UUID) ([]*activity.ActivityTag, error)
+	GetAthlete(ctx context.Context, athleteID uuid.UUID) (*Athlete, error)
+	GetUserAthletes(ctx context.Context, userID uuid.UUID) ([]*Athlete, error)
 	GetAthleteCurrentMeasurements(ctx context.Context, athleteID uuid.UUID) (*AthleteCurrentMeasurements, error)
 	GetAthleteVolume(ctx context.Context, params GetAthleteVolumeParams) (map[stride.Sport][]*AthleteVolumeData, error)
 }
@@ -73,7 +112,9 @@ type Reader interface {
 // It's implemented by DBStore.
 type Store interface {
 	Reader
+	UpsertAthlete(ctx context.Context, arg *Athlete) (*Athlete, error)
 	UpsertActivityEndurance(ctx context.Context, arg *activity.EnduranceActivity) (*activity.EnduranceActivity, error)
+	UpsertActivityThresholdAnalysis(ctx context.Context, arg *activity.ThresholdAnalysis) (*activity.ThresholdAnalysis, error)
 	UpsertTagsAndLinkActivity(ctx context.Context, a *activity.EnduranceActivity, tags []*activity.ActivityTag) error
 	SaveProviderActivityRawData(ctx context.Context, arg *activity.ProviderActivityRawData) (uuid.UUID, error)
 }

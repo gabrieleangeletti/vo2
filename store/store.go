@@ -35,6 +35,41 @@ func NewStore(db *sqlx.DB) vo2.Store {
 	}
 }
 
+func (s *dbStore) UpsertAthlete(ctx context.Context, arg *vo2.Athlete) (*vo2.Athlete, error) {
+	res, err := s.q.UpsertAthlete(ctx, arg.ToUpsertParams())
+	if err != nil {
+		return nil, err
+	}
+
+	return newAthlete(res), nil
+}
+
+func (s *dbStore) GetAthlete(ctx context.Context, athleteID uuid.UUID) (*vo2.Athlete, error) {
+	res, err := s.q.GetAthleteByID(ctx, athleteID)
+	if err != nil {
+		return nil, err
+	}
+
+	return newAthlete(res), nil
+}
+
+// GetUserAthletes retrieves the athletes associated with a user.
+func (s *dbStore) GetUserAthletes(ctx context.Context, userID uuid.UUID) ([]*vo2.Athlete, error) {
+	res, err := s.q.GetUserAthletes(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	athletes := make([]*vo2.Athlete, len(res))
+
+	for i, r := range res {
+		athletes[i] = newAthlete(r)
+	}
+
+	return athletes, nil
+}
+
+// GetAthleteCurrentMeasurements retrieves the current measurements for an athlete.
 func (s *dbStore) GetAthleteCurrentMeasurements(ctx context.Context, athleteID uuid.UUID) (*vo2.AthleteCurrentMeasurements, error) {
 	res, err := s.q.GetAthleteCurrentMeasurements(ctx, athleteID)
 	if err != nil {
@@ -42,6 +77,15 @@ func (s *dbStore) GetAthleteCurrentMeasurements(ctx context.Context, athleteID u
 	}
 
 	return newAthleteCurrentMeasurements(res), nil
+}
+
+func (s *dbStore) UpsertActivityThresholdAnalysis(ctx context.Context, arg *activity.ThresholdAnalysis) (*activity.ThresholdAnalysis, error) {
+	res, err := s.q.UpsertActivityThresholdAnalysis(ctx, arg.ToUpsertParams())
+	if err != nil {
+		return nil, err
+	}
+
+	return activity.NewActivityThresholdAnalysis(res), nil
 }
 
 // UpsertActivityEndurance inserts or updates an endurance activity.
@@ -64,11 +108,28 @@ func (s *dbStore) GetActivityEndurance(ctx context.Context, id uuid.UUID) (*acti
 	return activity.NewEnduranceActivity(res), nil
 }
 
+func (s *dbStore) ListAthleteActivitiesEndurance(ctx context.Context, providerID int, athleteID uuid.UUID) ([]*activity.EnduranceActivity, error) {
+	res, err := s.q.ListAthleteActivitiesEndurance(ctx, models.ListAthleteActivitiesEnduranceParams{
+		ProviderID: int32(providerID),
+		AthleteID:  athleteID,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	activities := make([]*activity.EnduranceActivity, len(res))
+	for i, r := range res {
+		activities[i] = activity.NewEnduranceActivity(r)
+	}
+
+	return activities, nil
+}
+
 // ListActivitiesEnduranceByTag retrieves a list of activities by tag.
-func (s *dbStore) ListActivitiesEnduranceByTag(ctx context.Context, providerID int, userID uuid.UUID, tag string) ([]*activity.EnduranceActivity, error) {
+func (s *dbStore) ListActivitiesEnduranceByTag(ctx context.Context, providerID int, athleteID uuid.UUID, tag string) ([]*activity.EnduranceActivity, error) {
 	res, err := s.q.ListActivitiesEnduranceByTag(ctx, models.ListActivitiesEnduranceByTagParams{
 		ProviderID: int32(providerID),
-		UserID:     userID,
+		AthleteID:  athleteID,
 		Tag:        tag,
 	})
 	if err != nil {
@@ -135,11 +196,11 @@ func (s *dbStore) UpsertTagsAndLinkActivity(ctx context.Context, a *activity.End
 func (s *dbStore) SaveProviderActivityRawData(ctx context.Context, arg *activity.ProviderActivityRawData) (uuid.UUID, error) {
 	query := `
 	INSERT INTO vo2.provider_activity_raw_data
-		(provider_id, user_id, provider_activity_id, start_time, elapsed_time, iana_timezone, utc_offset, data, detailed_activity_uri)
+		(provider_id, athlete_id, provider_activity_id, start_time, elapsed_time, iana_timezone, utc_offset, data, detailed_activity_uri)
 	VALUES
 		($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	ON CONFLICT
-		(provider_id, user_id, provider_activity_id)
+		(provider_id, athlete_id, provider_activity_id)
 	DO UPDATE SET
 		start_time = $4,
 		elapsed_time = $5,
@@ -153,7 +214,7 @@ func (s *dbStore) SaveProviderActivityRawData(ctx context.Context, arg *activity
 	var id uuid.UUID
 	err := s.db.QueryRowContext(ctx, query,
 		arg.ProviderID,
-		arg.UserID,
+		arg.AthleteID,
 		arg.ProviderActivityID,
 		arg.StartTime,
 		arg.ElapsedTime,
@@ -180,7 +241,7 @@ func (s *dbStore) GetAthleteVolume(ctx context.Context, params vo2.GetAthleteVol
 		Sports:       sports,
 		Frequency:    params.Frequency,
 		StartDate:    params.StartDate,
-		UserID:       params.UserID,
+		AthleteID:    params.AthleteID,
 		ProviderSlug: params.ProviderSlug,
 	}
 

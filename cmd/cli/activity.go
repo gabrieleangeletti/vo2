@@ -30,6 +30,7 @@ func newActivityCmd(cfg config) *cobra.Command {
 	}
 
 	cmd.AddCommand(normalizeActivityCmd(cfg))
+	cmd.AddCommand(analyzeActivityThresholdsCmd(cfg))
 
 	return cmd
 }
@@ -45,11 +46,11 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 				log.Fatal(err)
 			}
 
-			userID := uuid.MustParse(args[1])
+			athleteID := uuid.MustParse(args[1])
 
 			ctx := cmd.Context()
 
-			rawActivities, err := activity.GetProviderActivityRawData(ctx, cfg.DB, providerID, userID)
+			rawActivities, err := activity.GetProviderActivityRawData(ctx, cfg.DB, providerID, athleteID)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -192,6 +193,96 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 					if err != nil {
 						log.Fatal(err)
 					}
+				}
+			}
+
+			err = bar.Finish()
+			if err != nil {
+				log.Fatal(err)
+			}
+		},
+	}
+}
+
+func analyzeActivityThresholdsCmd(cfg config) *cobra.Command {
+	return &cobra.Command{
+		Use:   "analyze-thresholds",
+		Short: "Analyze activity thresholds",
+		Long:  `Analyze activity thresholds`,
+		Run: func(cmd *cobra.Command, args []string) {
+			providerID, err := strconv.Atoi(args[0])
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			athleteID := uuid.MustParse(args[1])
+
+			ctx := cmd.Context()
+
+			store := store.NewStore(cfg.DB)
+
+			measurements, err := store.GetAthleteCurrentMeasurements(ctx, athleteID)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			activities, err := store.ListAthleteActivitiesEndurance(ctx, providerID, athleteID)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			bar := progressbar.Default(int64(len(activities)))
+
+			for _, act := range activities {
+				err := bar.Add(1)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				if act.GpxFileURI == "" {
+					continue
+				}
+
+				data, err := internal.DownloadObject(ctx, act.GpxFileURI)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				_, ts, _, err := stride.ParseGPXFileFromMemory(data)
+				if err != nil {
+					if errors.Is(err, stride.ErrNoTrackPoints) {
+						_, err = store.UpsertActivityThresholdAnalysis(ctx, &activity.ThresholdAnalysis{
+							ActivityEnduranceID: act.ID,
+							TimeAtLt1Threshold:  0,
+							TimeAtLt2Threshold:  0,
+							RawAnalysis:         []byte("{}"),
+						})
+						continue
+					}
+					log.Fatal(err)
+				}
+
+				result, err := stride.AnalyzeHeartRateThresholds(ts, stride.HRThresholdAnalysisConfig{
+					LT1: uint8(measurements.Lt1Value),
+					LT2: uint8(measurements.Lt2Value),
+				})
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				rawAnalysis, err := json.Marshal(result)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				_, err = store.UpsertActivityThresholdAnalysis(ctx, &activity.ThresholdAnalysis{
+					ActivityEnduranceID: act.ID,
+					TimeAtLt1Threshold:  int32(result.TimeAtLT1Seconds),
+					TimeAtLt2Threshold:  int32(result.TimeAtLT2Seconds),
+					RawAnalysis:         rawAnalysis,
+				})
+				if err != nil {
+					log.Fatal(err)
 				}
 			}
 

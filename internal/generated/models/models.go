@@ -189,7 +189,7 @@ func (ns NullVo2ProviderConnectionType) Value() (driver.Value, error) {
 type Vo2ActivitiesEndurance struct {
 	ID                    uuid.UUID
 	ProviderID            int32
-	UserID                uuid.UUID
+	AthleteID             uuid.UUID
 	ProviderRawActivityID uuid.UUID
 	// Name of the activity, as given by the original provider.
 	Name string
@@ -327,7 +327,7 @@ type Vo2Provider struct {
 type Vo2ProviderActivityRawDatum struct {
 	ID                  uuid.UUID
 	ProviderID          int32
-	UserID              uuid.UUID
+	AthleteID           uuid.UUID
 	ProviderActivityID  string
 	StartTime           time.Time
 	ElapsedTime         int32

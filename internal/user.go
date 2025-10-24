@@ -45,6 +45,17 @@ func GetUserByID(ctx context.Context, db *sqlx.DB, userID uuid.UUID) (*User, err
 	return &u, nil
 }
 
+func GetAthleteUser(ctx context.Context, db *sqlx.DB, athleteID uuid.UUID) (*User, error) {
+	var u User
+
+	err := db.GetContext(ctx, &u, "SELECT * FROM vo2.users WHERE id = (select user_id from vo2.athletes where id = $1)", athleteID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &u, nil
+}
+
 func CreateUser(tx *sqlx.Tx, providerID int, userExternalID string) (*User, error) {
 	user := &User{
 		ProviderID:     providerID,

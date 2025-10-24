@@ -21,5 +21,5 @@ CREATE TABLE vo2.activities_endurance_tags (
     PRIMARY KEY (activity_id, tag_id),
 
     FOREIGN KEY (activity_id) REFERENCES vo2.activities_endurance (id) ON DELETE CASCADE,
-    FOREIGN KEY (tag_id) REFERENCES vo2.activity_tags (id) ON DELETE CASCADE
+    FOREIGN KEY (tag_id) REFERENCES vo2.activity_tags (id) ON UPDATE CASCADE ON DELETE CASCADE
 );

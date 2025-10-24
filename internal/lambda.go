@@ -98,11 +98,11 @@ func (l *LambdaHandler) HandleSQSRequest(ctx context.Context, sqsEvent events.SQ
 		}
 
 		if err := l.handler.ProcessHistoricalDataTask(ctx, task); err != nil {
-			slog.Error("Failed to process historical data task", "error", err, "messageId", record.MessageId, "userId", task.UserID)
+			slog.Error("Failed to process historical data task", "error", err, "messageId", record.MessageId, "athleteId", task.AthleteID)
 			return err
 		}
 
-		slog.Info("Successfully processed SQS message", "messageId", record.MessageId, "userId", task.UserID)
+		slog.Info("Successfully processed SQS message", "messageId", record.MessageId, "athleteId", task.AthleteID)
 	}
 
 	return nil

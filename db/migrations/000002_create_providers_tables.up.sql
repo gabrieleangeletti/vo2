@@ -51,6 +51,35 @@ CREATE TRIGGER set_users_updated_time BEFORE
 UPDATE
     ON vo2.users FOR EACH ROW EXECUTE PROCEDURE vo2.set_updated_at_timestamp();
 
+CREATE TYPE gender AS ENUM ('male', 'female', 'other');
+
+CREATE TABLE vo2.athletes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL,
+    age SMALLINT NOT NULL,
+    height_cm SMALLINT NOT NULL,
+    country CHAR(2) NOT NULL,
+    gender gender NOT NULL,
+    first_name VARCHAR(255) NOT NULL,
+    last_name VARCHAR(255) NOT NULL,
+    display_name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP,
+    deleted_at TIMESTAMP,
+
+    UNIQUE(email),
+
+    FOREIGN KEY (user_id) REFERENCES vo2.users(id)
+);
+
+CREATE TRIGGER set_athletes_updated_time BEFORE
+UPDATE
+    ON vo2.athletes FOR EACH ROW EXECUTE PROCEDURE vo2.set_updated_at_timestamp();
+
+CREATE INDEX idx_athletes_user_id ON vo2.athletes(user_id);
+
 CREATE TABLE vo2.provider_oauth2_credentials (
     id SERIAL PRIMARY KEY,
     provider_id INT NOT NULL,

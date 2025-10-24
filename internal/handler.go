@@ -53,7 +53,7 @@ func NewHandler(db *sqlx.DB, options ...func(*Handler)) *Handler {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /providers/strava/auth/callback", stravaAuthHandler(h.db))
+	mux.HandleFunc("GET /providers/strava/auth/callback", stravaAuthHandler(h.db, h.store))
 	mux.HandleFunc("GET /providers/strava/webhook", stravaRegisterWebhookHandler(h.db))
 	mux.HandleFunc("POST /providers/strava/webhook", stravaWebhookHandler(h.db, h.store))
 
@@ -120,7 +120,7 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 	// TODO: make provider agnostic
 	driver := NewStravaDriver()
 
-	credentials, err := ensureValidCredentials(ctx, h.db, driver, prov, task.UserID)
+	credentials, err := ensureValidCredentials(ctx, h.db, driver, prov, task.AthleteID)
 	if err != nil {
 		return fmt.Errorf("failed to get valid credentials: %w", err)
 	}
@@ -133,11 +133,11 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 	}
 
 	if len(activities) == 0 {
-		slog.Info("No activities found for time range", "userId", task.UserID, "startTime", task.StartTime, "endTime", task.EndTime)
+		slog.Info("No activities found for time range", "athleteId", task.AthleteID, "startTime", task.StartTime, "endTime", task.EndTime)
 		return nil
 	}
 
-	existingActivities, err := activity.GetProviderActivityRawData(ctx, h.db, prov.ID, task.UserID)
+	existingActivities, err := activity.GetProviderActivityRawData(ctx, h.db, prov.ID, task.AthleteID)
 	if err != nil {
 		return fmt.Errorf("failed to get existing activities: %w", err)
 	}
@@ -152,7 +152,7 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 		existingActivitiesMap[id] = a
 	}
 
-	slog.Info("Processing historical activities", "userId", task.UserID, "activityCount", len(activities), "startTime", task.StartTime, "endTime", task.EndTime)
+	slog.Info("Processing historical activities", "athleteId", task.AthleteID, "activityCount", len(activities), "startTime", task.StartTime, "endTime", task.EndTime)
 
 	for _, act := range activities {
 		// Note: this is the most basic way to handle rate limits. We basically go until we hit the limit.
@@ -186,7 +186,7 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 
 		activityRaw := activity.ProviderActivityRawData{
 			ProviderID:         prov.ID,
-			UserID:             task.UserID,
+			AthleteID:          task.AthleteID,
 			ProviderActivityID: strconv.FormatInt(detailedActivity.ID, 10),
 			StartTime:          act.StartDate,
 			ElapsedTime:        act.ElapsedTime,
@@ -214,13 +214,15 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 		return nil
 	}
 
-	slog.Info("Successfully processed historical activities", "userId", task.UserID, "processedCount", len(activities))
+	slog.Info("Successfully processed historical activities", "athleteId", task.AthleteID, "processedCount", len(activities))
 
 	return nil
 }
 
-func stravaAuthHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) {
+func stravaAuthHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.Background()
+
 		errorCode := r.URL.Query().Get("error")
 		if errorCode != "" {
 			http.Error(w, errorCode, http.StatusBadRequest)
@@ -263,6 +265,23 @@ func stravaAuthHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
+		// TODO: hardcoded for now.
+		athlete, err := store.UpsertAthlete(ctx, &vo2.Athlete{
+			UserID:      user.ID,
+			Age:         33,
+			HeightCm:    180,
+			Country:     "it",
+			Gender:      vo2.GenderMale,
+			FirstName:   "Gabriele",
+			LastName:    "Angeletti",
+			DisplayName: "Gabriele Angeletti",
+			Email:       "angeletti.gabriele@gmail.com",
+		})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
 		credentials := ProviderOAuth2Credentials{
 			ProviderID:   prov.ID,
 			UserID:       user.ID,
@@ -283,8 +302,8 @@ func stravaAuthHandler(db *sqlx.DB) func(http.ResponseWriter, *http.Request) {
 			return
 		}
 
-		if err := queueHistoricalDataTasks(r.Context(), user.ID, prov.ID, HistoricalDataTaskTypeActivity); err != nil {
-			slog.Error("Failed to queue historical data tasks", "error", err, "userId", user.ID)
+		if err := queueHistoricalDataTasks(r.Context(), athlete.ID, prov.ID, HistoricalDataTaskTypeActivity); err != nil {
+			slog.Error("Failed to queue historical data tasks", "error", err, "athleteId", athlete.ID)
 			// Queue historical data tasks synchronously to ensure completion in case we are serverless (e.g. Lambda).
 			// Don't fail the entire auth flow if queuing fails - user is still authenticated.
 			// TODO: we should rearchitect this to run async even in serverless environments.
@@ -381,9 +400,19 @@ func stravaWebhookHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter
 			return
 		}
 
+		athletes, err := store.GetUserAthletes(ctx, user.ID)
+		if err != nil {
+			slog.Error(err.Error())
+			http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// TODO: for now, we assume that one user has only one athlete.
+		athlete := athletes[0]
+
 		driver := NewStravaDriver()
 
-		credentials, err := ensureValidCredentials(r.Context(), db, driver, prov, user.ID)
+		credentials, err := ensureValidCredentials(r.Context(), db, driver, prov, athlete.ID)
 		if err != nil {
 			slog.Error(err.Error())
 			http.Error(w, ErrGeneric.Error(), http.StatusBadRequest)
@@ -437,7 +466,7 @@ func stravaWebhookHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter
 
 				activityRaw := activity.ProviderActivityRawData{
 					ProviderID:         prov.ID,
-					UserID:             user.ID,
+					AthleteID:          athlete.ID,
 					ProviderActivityID: strconv.FormatInt(event.ObjectID, 10),
 					StartTime:          stravaActivity.StartDate,
 					ElapsedTime:        stravaActivity.ElapsedTime,
@@ -494,7 +523,7 @@ func stravaWebhookHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter
 	}
 }
 
-func queueHistoricalDataTasks(ctx context.Context, userID uuid.UUID, providerID int, taskType HistoricalDataTaskType) error {
+func queueHistoricalDataTasks(ctx context.Context, athleteID uuid.UUID, providerID int, taskType HistoricalDataTaskType) error {
 	sqsClient, err := NewSQSClient()
 	if err != nil {
 		return fmt.Errorf("failed to create SQS client: %w", err)
@@ -513,7 +542,7 @@ func queueHistoricalDataTasks(ctx context.Context, userID uuid.UUID, providerID 
 		}
 
 		task := HistoricalDataTask{
-			UserID:     userID,
+			AthleteID:  athleteID,
 			ProviderID: providerID,
 			Type:       taskType,
 			StartTime:  monthStart,
@@ -524,7 +553,7 @@ func queueHistoricalDataTasks(ctx context.Context, userID uuid.UUID, providerID 
 			return fmt.Errorf("failed to send historical data task: %w", err)
 		}
 
-		slog.Info("Queued historical data task", "userId", userID, "startTime", monthStart, "endTime", monthEnd)
+		slog.Info("Queued historical data task", "athleteId", athleteID, "startTime", monthStart, "endTime", monthEnd)
 	}
 
 	return nil
@@ -547,7 +576,7 @@ func athleteVolumeHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter
 			return
 		}
 
-		user, err := GetUserByID(ctx, db, athleteID)
+		athlete, err := store.GetAthlete(ctx, athleteID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				http.Error(w, "User not found", http.StatusNotFound)
@@ -620,7 +649,7 @@ func athleteVolumeHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter
 
 		volumeParams := vo2.GetAthleteVolumeParams{
 			Frequency:    frequency,
-			UserID:       user.ID,
+			AthleteID:    athlete.ID,
 			ProviderSlug: provider,
 			Sports:       sports,
 			StartDate:    startDateTime,
@@ -645,7 +674,7 @@ func athleteVolumeHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter
 		}
 
 		response := map[string]any{
-			"userId":    user.ID,
+			"athleteId": athlete.ID,
 			"provider":  provider,
 			"frequency": frequency,
 			"sports":    sportStrings,

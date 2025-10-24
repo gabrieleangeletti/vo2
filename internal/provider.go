@@ -65,8 +65,13 @@ func (d *StravaDriver) RefreshToken(ctx context.Context, refreshToken string) (*
 	return &token, nil
 }
 
-func ensureValidCredentials[C any, A any](ctx context.Context, db *sqlx.DB, driver ProviderDriver[C, A], prov *provider.Provider, userID uuid.UUID) (*ProviderOAuth2Credentials, error) {
-	credentials, err := GetProviderOAuth2Credentials(db, prov.ID, userID)
+func ensureValidCredentials[C any, A any](ctx context.Context, db *sqlx.DB, driver ProviderDriver[C, A], prov *provider.Provider, athleteID uuid.UUID) (*ProviderOAuth2Credentials, error) {
+	user, err := GetAthleteUser(ctx, db, athleteID)
+	if err != nil {
+		return nil, err
+	}
+
+	credentials, err := GetProviderOAuth2Credentials(db, prov.ID, user.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +83,7 @@ func ensureValidCredentials[C any, A any](ctx context.Context, db *sqlx.DB, driv
 		}
 		defer tx.Rollback()
 
-		err = tx.Get(credentials, "SELECT * FROM vo2.provider_oauth2_credentials WHERE provider_id = $1 AND user_id = $2 FOR UPDATE", prov.ID, userID)
+		err = tx.Get(credentials, "SELECT * FROM vo2.provider_oauth2_credentials WHERE provider_id = $1 AND user_id = $2 FOR UPDATE", prov.ID, user.ID)
 		if err != nil {
 			return nil, err
 		}
