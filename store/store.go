@@ -125,6 +125,20 @@ func (s *dbStore) ListAthleteActivitiesEndurance(ctx context.Context, providerID
 	return activities, nil
 }
 
+func (s *dbStore) ListAthleteActivitiesEnduranceByIDs(ctx context.Context, ids []uuid.UUID) ([]*activity.EnduranceActivity, error) {
+	res, err := s.q.ListActivitiesEnduranceById(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+
+	activities := make([]*activity.EnduranceActivity, len(res))
+	for i, r := range res {
+		activities[i] = activity.NewEnduranceActivity(r)
+	}
+
+	return activities, nil
+}
+
 // ListActivitiesEnduranceByTag retrieves a list of activities by tag.
 func (s *dbStore) ListActivitiesEnduranceByTag(ctx context.Context, providerID int, athleteID uuid.UUID, tag string) ([]*activity.EnduranceActivity, error) {
 	res, err := s.q.ListActivitiesEnduranceByTag(ctx, models.ListActivitiesEnduranceByTagParams{

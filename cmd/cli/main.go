@@ -25,6 +25,7 @@ func newRootCmd(cfg config) *cobra.Command {
 
 	rootCmd.AddCommand(newProviderCmd(cfg))
 	rootCmd.AddCommand(newActivityCmd(cfg))
+	rootCmd.AddCommand(newAnalysisCmd(cfg))
 
 	return rootCmd
 }

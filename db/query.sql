@@ -96,6 +96,13 @@ WHERE
 ORDER BY
     start_time DESC;
 
+-- name: ListActivitiesEnduranceById :many
+SELECT
+	*
+FROM vo2.activities_endurance
+WHERE
+    id = ANY(@ids::uuid[]);
+
 -- name: ListActivitiesEnduranceByTag :many
 SELECT
 	a.*

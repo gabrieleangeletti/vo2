@@ -1,0 +1,16 @@
+[
+  {
+    "id": "fde0ec6e-b852-4aed-a7e7-3458095bb9e8",
+    "date": "2025-10-30T00:00:00Z",
+    "sport": "treadmill",
+    "kind": "lt2",
+    "expected": 1065
+  },
+  {
+    "id": "ff759910-273b-4efe-988f-cd96b27eeb61",
+    "date": "2025-09-30T00:00:00Z",
+    "sport": "elliptical",
+    "kind": "lt2",
+    "expected": 1059
+  }
+]

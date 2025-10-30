@@ -324,6 +324,64 @@ func (q *Queries) GetUserAthletes(ctx context.Context, userID uuid.UUID) ([]Vo2A
 	return items, nil
 }
 
+const listActivitiesEnduranceById = `-- name: ListActivitiesEnduranceById :many
+SELECT
+	id, provider_id, athlete_id, provider_raw_activity_id, name, description, sport, start_time, end_time, iana_timezone, utc_offset, elapsed_time, moving_time, distance, elev_gain, elev_loss, avg_speed, avg_hr, max_hr, summary_polyline, summary_route, gpx_file_uri, fit_file_uri, created_at, updated_at, deleted_at
+FROM vo2.activities_endurance
+WHERE
+    id = ANY($1::uuid[])
+`
+
+func (q *Queries) ListActivitiesEnduranceById(ctx context.Context, ids []uuid.UUID) ([]Vo2ActivitiesEndurance, error) {
+	rows, err := q.db.QueryContext(ctx, listActivitiesEnduranceById, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Vo2ActivitiesEndurance
+	for rows.Next() {
+		var i Vo2ActivitiesEndurance
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProviderID,
+			&i.AthleteID,
+			&i.ProviderRawActivityID,
+			&i.Name,
+			&i.Description,
+			&i.Sport,
+			&i.StartTime,
+			&i.EndTime,
+			&i.IanaTimezone,
+			&i.UtcOffset,
+			&i.ElapsedTime,
+			&i.MovingTime,
+			&i.Distance,
+			&i.ElevGain,
+			&i.ElevLoss,
+			&i.AvgSpeed,
+			&i.AvgHr,
+			&i.MaxHr,
+			&i.SummaryPolyline,
+			&i.SummaryRoute,
+			&i.GpxFileUri,
+			&i.FitFileUri,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listActivitiesEnduranceByTag = `-- name: ListActivitiesEnduranceByTag :many
 SELECT
 	a.id, a.provider_id, a.athlete_id, a.provider_raw_activity_id, a.name, a.description, a.sport, a.start_time, a.end_time, a.iana_timezone, a.utc_offset, a.elapsed_time, a.moving_time, a.distance, a.elev_gain, a.elev_loss, a.avg_speed, a.avg_hr, a.max_hr, a.summary_polyline, a.summary_route, a.gpx_file_uri, a.fit_file_uri, a.created_at, a.updated_at, a.deleted_at
