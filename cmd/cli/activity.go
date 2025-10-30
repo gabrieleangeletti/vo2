@@ -263,8 +263,14 @@ func analyzeActivityThresholdsCmd(cfg config) *cobra.Command {
 				}
 
 				result, err := stride.AnalyzeHeartRateThresholds(ts, stride.HRThresholdAnalysisConfig{
-					LT1: uint8(measurements.Lt1Value),
-					LT2: uint8(measurements.Lt2Value),
+					LT1:                        uint8(measurements.Lt1Value),
+					LT2:                        uint8(measurements.Lt2Value),
+					BucketSizeSeconds:          30,
+					MinValidPointsPerBucket:    4,
+					ThresholdTolerancePercent:  0.05,
+					LT1OverlapTolerancePercent: 0.05,
+					MinConsecutiveBuckets:      6,
+					ConsecutivePeriodThreshold: 0.80,
 				})
 				if err != nil {
 					log.Fatal(err)

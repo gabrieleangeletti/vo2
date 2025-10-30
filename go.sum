@@ -55,6 +55,8 @@ github.com/gabrieleangeletti/stride v0.0.36 h1:1yeN8xmtXk7C7K2udbXO/r76TumKSqHbK
 github.com/gabrieleangeletti/stride v0.0.36/go.mod h1:XabWoFHRXz3CNj+5zokiqT6TGRnefR/KmpBSgXsljZc=
 github.com/gabrieleangeletti/stride v0.0.37 h1:htCQSFGre6YJ6AAC5uEfgW9Oh4tXx9HZyO3TQLew2SI=
 github.com/gabrieleangeletti/stride v0.0.37/go.mod h1:XabWoFHRXz3CNj+5zokiqT6TGRnefR/KmpBSgXsljZc=
+github.com/gabrieleangeletti/stride v0.0.38 h1:YsZpdzw+ku4rfs38q3EQnvYVpcxvRYUNkV06v/xLleY=
+github.com/gabrieleangeletti/stride v0.0.38/go.mod h1:XabWoFHRXz3CNj+5zokiqT6TGRnefR/KmpBSgXsljZc=
 github.com/go-chi/chi/v5 v5.1.0 h1:acVI1TYaD+hhedDJ3r54HyA6sExp3HfXq7QWEEY/xMw=
 github.com/go-chi/chi/v5 v5.1.0/go.mod h1:DslCQbL2OYiznFReuXYUmQ2hGd1aDpCnlMNITLSKoi8=
 github.com/go-chi/httplog/v3 v3.2.2 h1:G0oYv3YYcikNjijArHFUlqfR78cQNh9fGT43i6StqVc=

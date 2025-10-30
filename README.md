@@ -9,5 +9,5 @@ Fitness data import.
 
 ## TODO:
 
-* Optimize storage of empty threshold analysis results.
-* `ParseGPXFileFromMemory` should still return heart rate data even if no GPS data is available.
+* Optimize storage of empty threshold analysis results. Preferred options: (1) separate status table, (2) nullable column in `activities_endurance` to indicate processed status.
+* Improve time at LT1/LT2 algorithm based off of known activities.
