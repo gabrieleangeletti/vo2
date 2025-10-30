@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"log/slog"
+	"math"
 	"net/http"
 	"os"
 	"slices"
@@ -507,6 +509,77 @@ func stravaWebhookHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter
 				}
 
 				act.ID = upsertedAct.ID
+
+				strideActivity, err := stravaActivity.ToActivity()
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				ts, err := streams.ToTimeseries(activityRaw.StartTime)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				sport, err := stravaActivity.Sport()
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				gpxData, err := stride.CreateGPXFileInMemory(strideActivity, ts, sport)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				objectKey := fmt.Sprintf("activity_details/%s/gpx/%s.gpx", "strava", act.ID)
+
+				res, err := UploadObject(ctx, objectKey, gpxData, nil)
+				if err != nil {
+					log.Fatal(fmt.Errorf("Error uploading activity streams: %w", err))
+				}
+
+				act.GpxFileURI = res.Location
+
+				avgHR, err := stride.CalculateAverageHeartRate(ts, stride.AvgHeartRateAnalysisConfig{
+					Method:       stride.HeartRateMethodTimeWeighted,
+					ExcludeZeros: true,
+					MinValidRate: 40,
+					MaxValidRate: 220,
+					MaxHeartRate: 193,
+				})
+				if err != nil {
+					if !errors.Is(err, stride.ErrNoValidData) {
+						fmt.Printf("Error: %v\n", err)
+						return
+					}
+				}
+
+				if avgHR > 0 {
+					avgValue := int16(math.Round(avgHR))
+					act.AvgHR = avgValue
+				}
+
+				thirtySec := 30 * time.Second
+
+				maxHR, err := stride.CalculateMaxHeartRate(ts, stride.MaxHeartRateAnalysisConfig{
+					Method:         stride.MaxHeartRateMethodRollingWindow,
+					WindowDuration: &thirtySec,
+				})
+				if err != nil {
+					if !errors.Is(err, stride.ErrNoValidData) {
+						fmt.Printf("Error: %v\n", err)
+						return
+					}
+				}
+
+				if maxHR > 0 {
+					maxValue := int16(maxHR)
+					act.MaxHR = maxValue
+				}
+
+				_, err = store.UpsertActivityEndurance(ctx, act)
+				if err != nil {
+					log.Fatal(err)
+				}
 
 				tags := act.ExtractActivityTags()
 
