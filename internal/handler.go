@@ -39,14 +39,21 @@ const (
 type Handler struct {
 	db          *sqlx.DB
 	handler     http.Handler
-	store       vo2.Store
+	dbStore     store.DBStore
+	objectStore store.ObjectStore
 	middlewares []func(http.Handler) http.Handler
 }
 
 func NewHandler(db *sqlx.DB, options ...func(*Handler)) *Handler {
+	objectStore, err := store.NewS3ObjectStore(GetSecret("AWS_S3_BUCKET_NAME", true))
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	h := &Handler{
-		db:    db,
-		store: store.NewStore(db),
+		db:          db,
+		dbStore:     store.NewStore(db),
+		objectStore: objectStore,
 	}
 
 	for _, opt := range options {
@@ -55,11 +62,11 @@ func NewHandler(db *sqlx.DB, options ...func(*Handler)) *Handler {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /providers/strava/auth/callback", stravaAuthHandler(h.db, h.store))
+	mux.HandleFunc("GET /providers/strava/auth/callback", stravaAuthHandler(h.db, h.dbStore))
 	mux.HandleFunc("GET /providers/strava/webhook", stravaRegisterWebhookHandler(h.db))
-	mux.HandleFunc("POST /providers/strava/webhook", stravaWebhookHandler(h.db, h.store))
+	mux.HandleFunc("POST /providers/strava/webhook", stravaWebhookHandler(h.db, h.dbStore, h.objectStore))
 
-	mux.HandleFunc("GET /athletes/{athleteID}/metrics/volume", athleteVolumeHandler(h.db, h.store))
+	mux.HandleFunc("GET /athletes/{athleteID}/metrics/volume", athleteVolumeHandler(h.db, h.dbStore))
 
 	h.handler = h.chain(mux)
 
@@ -167,7 +174,7 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 					return fmt.Errorf("failed to get activity streams: %w", err)
 				}
 
-				err = UploadRawActivityDetails(ctx, h.db, prov.Slug, existing, streams)
+				err = UploadRawActivityDetails(ctx, h.db, h.objectStore, prov.Slug, existing, streams)
 				if err != nil {
 					return fmt.Errorf("failed to upload raw activity details: %w", err)
 				}
@@ -196,7 +203,7 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 			Data:               data,
 		}
 
-		activityRawID, err := h.store.SaveProviderActivityRawData(ctx, &activityRaw)
+		activityRawID, err := h.dbStore.SaveProviderActivityRawData(ctx, &activityRaw)
 		if err != nil {
 			return fmt.Errorf("failed to save activity: %w", err)
 		}
@@ -208,7 +215,7 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 			return fmt.Errorf("failed to get activity streams: %w", err)
 		}
 
-		err = UploadRawActivityDetails(ctx, h.db, prov.Slug, &activityRaw, streams)
+		err = UploadRawActivityDetails(ctx, h.db, h.objectStore, prov.Slug, &activityRaw, streams)
 		if err != nil {
 			return fmt.Errorf("failed to upload raw activity details: %w", err)
 		}
@@ -221,7 +228,7 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 	return nil
 }
 
-func stravaAuthHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter, *http.Request) {
+func stravaAuthHandler(db *sqlx.DB, dbStore store.DBStore) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.Background()
 
@@ -268,7 +275,7 @@ func stravaAuthHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter, *
 		}
 
 		// TODO: hardcoded for now.
-		athlete, err := store.UpsertAthlete(ctx, &vo2.Athlete{
+		athlete, err := dbStore.UpsertAthlete(ctx, &vo2.Athlete{
 			UserID:      user.ID,
 			Age:         33,
 			HeightCm:    180,
@@ -361,7 +368,7 @@ func stravaRegisterWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.R
 	}
 }
 
-func stravaWebhookHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter, *http.Request) {
+func stravaWebhookHandler(db *sqlx.DB, dbStore store.DBStore, objectStore store.ObjectStore) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		slog.Info("Received Strava Webhook")
 
@@ -402,7 +409,7 @@ func stravaWebhookHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter
 			return
 		}
 
-		athletes, err := store.GetUserAthletes(ctx, user.ID)
+		athletes, err := dbStore.GetUserAthletes(ctx, user.ID)
 		if err != nil {
 			slog.Error(err.Error())
 			http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
@@ -476,7 +483,7 @@ func stravaWebhookHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter
 					Data:               data,
 				}
 
-				activityRawID, err := store.SaveProviderActivityRawData(ctx, &activityRaw)
+				activityRawID, err := dbStore.SaveProviderActivityRawData(ctx, &activityRaw)
 				if err != nil {
 					slog.Error(err.Error())
 					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
@@ -485,7 +492,7 @@ func stravaWebhookHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter
 
 				activityRaw.ID = activityRawID
 
-				err = UploadRawActivityDetails(ctx, db, prov.Slug, &activityRaw, streams)
+				err = UploadRawActivityDetails(ctx, db, objectStore, prov.Slug, &activityRaw, streams)
 				if err != nil {
 					slog.Error(err.Error())
 					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
@@ -501,7 +508,7 @@ func stravaWebhookHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter
 					}
 				}
 
-				upsertedAct, err := store.UpsertActivityEndurance(ctx, act)
+				upsertedAct, err := dbStore.UpsertActivityEndurance(ctx, act)
 				if err != nil {
 					slog.Error(err.Error())
 					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
@@ -532,7 +539,7 @@ func stravaWebhookHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter
 
 				objectKey := fmt.Sprintf("activity_details/%s/gpx/%s.gpx", "strava", act.ID)
 
-				res, err := UploadObject(ctx, objectKey, gpxData, nil)
+				res, err := objectStore.UploadObject(ctx, objectKey, gpxData, nil)
 				if err != nil {
 					log.Fatal(fmt.Errorf("Error uploading activity streams: %w", err))
 				}
@@ -576,7 +583,7 @@ func stravaWebhookHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter
 					act.MaxHR = maxValue
 				}
 
-				_, err = store.UpsertActivityEndurance(ctx, act)
+				_, err = dbStore.UpsertActivityEndurance(ctx, act)
 				if err != nil {
 					log.Fatal(err)
 				}
@@ -584,7 +591,7 @@ func stravaWebhookHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter
 				tags := act.ExtractActivityTags()
 
 				if len(tags) > 0 {
-					err = store.UpsertTagsAndLinkActivity(ctx, act, tags)
+					err = dbStore.UpsertTagsAndLinkActivity(ctx, act, tags)
 					if err != nil {
 						slog.Error(err.Error())
 						http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
@@ -632,7 +639,7 @@ func queueHistoricalDataTasks(ctx context.Context, athleteID uuid.UUID, provider
 	return nil
 }
 
-func athleteVolumeHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter, *http.Request) {
+func athleteVolumeHandler(db *sqlx.DB, dbStore store.DBStore) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		apiKey := GetSecret("VO2_API_KEY", true)
 		if r.Header.Get("x-vo2-api-key") != apiKey {
@@ -649,7 +656,7 @@ func athleteVolumeHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter
 			return
 		}
 
-		athlete, err := store.GetAthlete(ctx, athleteID)
+		athlete, err := dbStore.GetAthlete(ctx, athleteID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				http.Error(w, "User not found", http.StatusNotFound)
@@ -728,7 +735,7 @@ func athleteVolumeHandler(db *sqlx.DB, store vo2.Store) func(http.ResponseWriter
 			StartDate:    startDateTime,
 		}
 
-		volumeData, err := store.GetAthleteVolume(ctx, volumeParams)
+		volumeData, err := dbStore.GetAthleteVolume(ctx, volumeParams)
 		if err != nil {
 			slog.Error("Failed to get athlete volume", "error", err, "params", volumeParams)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)

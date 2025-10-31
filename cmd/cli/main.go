@@ -10,10 +10,13 @@ import (
 
 	"github.com/gabrieleangeletti/vo2/database"
 	"github.com/gabrieleangeletti/vo2/internal"
+	"github.com/gabrieleangeletti/vo2/store"
 )
 
 type config struct {
-	DB *sqlx.DB
+	DB          *sqlx.DB // For backward compatibility. Should be replaced with `dbStore`.
+	dbStore     store.DBStore
+	objectStore store.ObjectStore
 }
 
 func newRootCmd(cfg config) *cobra.Command {
@@ -35,11 +38,20 @@ func main() {
 
 	db, err := database.NewDB(internal.DefaultDBConfig())
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
+	}
+
+	dbStore := store.NewStore(db)
+
+	objectStore, err := store.NewS3ObjectStore(internal.GetSecret("AWS_S3_BUCKET_NAME", true))
+	if err != nil {
+		log.Fatal(err)
 	}
 
 	cfg := config{
-		DB: db,
+		DB:          db,
+		dbStore:     dbStore,
+		objectStore: objectStore,
 	}
 
 	rootCmd := newRootCmd(cfg)

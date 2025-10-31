@@ -17,9 +17,7 @@ import (
 	"github.com/gabrieleangeletti/stride"
 	"github.com/gabrieleangeletti/stride/strava"
 	"github.com/gabrieleangeletti/vo2/activity"
-	"github.com/gabrieleangeletti/vo2/internal"
 	"github.com/gabrieleangeletti/vo2/provider"
-	"github.com/gabrieleangeletti/vo2/store"
 )
 
 func newActivityCmd(cfg config) *cobra.Command {
@@ -60,8 +58,6 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 				log.Fatal(err)
 			}
 
-			store := store.NewStore(cfg.DB)
-
 			bar := progressbar.Default(int64(len(rawActivities)))
 
 			slices.SortFunc(rawActivities, func(a *activity.ProviderActivityRawData, b *activity.ProviderActivityRawData) int {
@@ -92,13 +88,13 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 					log.Fatal(err)
 				}
 
-				act, err = store.UpsertActivityEndurance(ctx, act)
+				act, err = cfg.dbStore.UpsertActivityEndurance(ctx, act)
 				if err != nil {
 					log.Fatal(err)
 				}
 
 				if raw.DetailedActivityURI.Valid {
-					data, err := internal.DownloadObject(ctx, raw.DetailedActivityURI.String)
+					data, err := cfg.objectStore.DownloadObject(ctx, raw.DetailedActivityURI.String)
 					if err != nil {
 						log.Fatal(err)
 					}
@@ -137,7 +133,7 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 
 					objectKey := fmt.Sprintf("activity_details/%s/gpx/%s.gpx", "strava", act.ID)
 
-					res, err := internal.UploadObject(ctx, objectKey, gpxData, nil)
+					res, err := cfg.objectStore.UploadObject(ctx, objectKey, gpxData, nil)
 					if err != nil {
 						log.Fatal(fmt.Errorf("Error uploading activity streams: %w", err))
 					}
@@ -181,7 +177,7 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 						act.MaxHR = maxValue
 					}
 
-					_, err = store.UpsertActivityEndurance(ctx, act)
+					_, err = cfg.dbStore.UpsertActivityEndurance(ctx, act)
 					if err != nil {
 						log.Fatal(err)
 					}
@@ -189,7 +185,7 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 
 				tags := act.ExtractActivityTags()
 				if len(tags) > 0 {
-					err = store.UpsertTagsAndLinkActivity(ctx, act, tags)
+					err = cfg.dbStore.UpsertTagsAndLinkActivity(ctx, act, tags)
 					if err != nil {
 						log.Fatal(err)
 					}
@@ -219,14 +215,12 @@ func analyzeActivityThresholdsCmd(cfg config) *cobra.Command {
 
 			ctx := cmd.Context()
 
-			store := store.NewStore(cfg.DB)
-
-			measurements, err := store.GetAthleteCurrentMeasurements(ctx, athleteID)
+			measurements, err := cfg.dbStore.GetAthleteCurrentMeasurements(ctx, athleteID)
 			if err != nil {
 				log.Fatal(err)
 			}
 
-			activities, err := store.ListAthleteActivitiesEndurance(ctx, providerID, athleteID)
+			activities, err := cfg.dbStore.ListAthleteActivitiesEndurance(ctx, providerID, athleteID)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -243,7 +237,7 @@ func analyzeActivityThresholdsCmd(cfg config) *cobra.Command {
 					continue
 				}
 
-				data, err := internal.DownloadObject(ctx, act.GpxFileURI)
+				data, err := cfg.objectStore.DownloadObject(ctx, act.GpxFileURI)
 				if err != nil {
 					log.Fatal(err)
 				}
@@ -251,7 +245,7 @@ func analyzeActivityThresholdsCmd(cfg config) *cobra.Command {
 				_, ts, _, err := stride.ParseGPXFileFromMemory(data)
 				if err != nil {
 					if errors.Is(err, stride.ErrNoTrackPoints) {
-						_, err = store.UpsertActivityThresholdAnalysis(ctx, &activity.ThresholdAnalysis{
+						_, err = cfg.dbStore.UpsertActivityThresholdAnalysis(ctx, &activity.ThresholdAnalysis{
 							ActivityEnduranceID: act.ID,
 							TimeAtLt1Threshold:  0,
 							TimeAtLt2Threshold:  0,
@@ -265,8 +259,8 @@ func analyzeActivityThresholdsCmd(cfg config) *cobra.Command {
 				result, err := stride.AnalyzeHeartRateThresholds(ts, stride.HRThresholdAnalysisConfig{
 					LT1:                        uint8(measurements.Lt1Value),
 					LT2:                        uint8(measurements.Lt2Value),
-					BucketSizeSeconds:          30,
-					MinValidPointsPerBucket:    4,
+					BucketSizeSeconds:          40,
+					MinValidPointsPerBucket:    5,
 					ThresholdTolerancePercent:  0.05,
 					LT1OverlapTolerancePercent: 0.05,
 					MinConsecutiveBuckets:      6,
@@ -281,7 +275,7 @@ func analyzeActivityThresholdsCmd(cfg config) *cobra.Command {
 					log.Fatal(err)
 				}
 
-				_, err = store.UpsertActivityThresholdAnalysis(ctx, &activity.ThresholdAnalysis{
+				_, err = cfg.dbStore.UpsertActivityThresholdAnalysis(ctx, &activity.ThresholdAnalysis{
 					ActivityEnduranceID: act.ID,
 					TimeAtLt1Threshold:  int32(result.TimeAtLT1Seconds),
 					TimeAtLt2Threshold:  int32(result.TimeAtLT2Seconds),

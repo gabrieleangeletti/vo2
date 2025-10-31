@@ -1,13 +1,11 @@
 package vo2
 
 import (
-	"context"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/gabrieleangeletti/stride"
-	"github.com/gabrieleangeletti/vo2/activity"
 	"github.com/gabrieleangeletti/vo2/internal/generated/models"
 )
 
@@ -93,29 +91,4 @@ type GetAthleteVolumeParams struct {
 	ProviderSlug string         `json:"providerSlug"`
 	Sports       []stride.Sport `json:"sports"`
 	StartDate    time.Time      `json:"startDate"`
-}
-
-// Reader defines the interface for read-only database operations.
-// It's implemented by DBStore.
-type Reader interface {
-	GetActivityEndurance(ctx context.Context, id uuid.UUID) (*activity.EnduranceActivity, error)
-	ListAthleteActivitiesEndurance(ctx context.Context, providerID int, athleteID uuid.UUID) ([]*activity.EnduranceActivity, error)
-	ListAthleteActivitiesEnduranceByIDs(ctx context.Context, ids []uuid.UUID) ([]*activity.EnduranceActivity, error)
-	ListActivitiesEnduranceByTag(ctx context.Context, providerID int, athleteID uuid.UUID, tag string) ([]*activity.EnduranceActivity, error)
-	GetActivityTags(ctx context.Context, activityID uuid.UUID) ([]*activity.ActivityTag, error)
-	GetAthlete(ctx context.Context, athleteID uuid.UUID) (*Athlete, error)
-	GetUserAthletes(ctx context.Context, userID uuid.UUID) ([]*Athlete, error)
-	GetAthleteCurrentMeasurements(ctx context.Context, athleteID uuid.UUID) (*AthleteCurrentMeasurements, error)
-	GetAthleteVolume(ctx context.Context, params GetAthleteVolumeParams) (map[stride.Sport][]*AthleteVolumeData, error)
-}
-
-// Store defines the interface for read and write database operations.
-// It's implemented by DBStore.
-type Store interface {
-	Reader
-	UpsertAthlete(ctx context.Context, arg *Athlete) (*Athlete, error)
-	UpsertActivityEndurance(ctx context.Context, arg *activity.EnduranceActivity) (*activity.EnduranceActivity, error)
-	UpsertActivityThresholdAnalysis(ctx context.Context, arg *activity.ThresholdAnalysis) (*activity.ThresholdAnalysis, error)
-	UpsertTagsAndLinkActivity(ctx context.Context, a *activity.EnduranceActivity, tags []*activity.ActivityTag) error
-	SaveProviderActivityRawData(ctx context.Context, arg *activity.ProviderActivityRawData) (uuid.UUID, error)
 }

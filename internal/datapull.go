@@ -15,6 +15,7 @@ import (
 	"github.com/gabrieleangeletti/stride"
 	"github.com/gabrieleangeletti/stride/strava"
 	"github.com/gabrieleangeletti/vo2/activity"
+	"github.com/gabrieleangeletti/vo2/store"
 )
 
 func GetStravaActivitySummaries(client *strava.Client, startTime, endTime time.Time) ([]strava.ActivitySummary, error) {
@@ -64,7 +65,7 @@ func GetStravaActivitySummaries(client *strava.Client, startTime, endTime time.T
 	return activities, nil
 }
 
-func UploadRawActivityDetails(ctx context.Context, db *sqlx.DB, provider string, activityRaw *activity.ProviderActivityRawData, streams any) error {
+func UploadRawActivityDetails(ctx context.Context, db *sqlx.DB, objectStore store.ObjectStore, provider string, activityRaw *activity.ProviderActivityRawData, streams any) error {
 	streamData, err := json.Marshal(streams)
 	if err != nil {
 		return fmt.Errorf("failed to marshal activity streams: %w", err)
@@ -72,7 +73,7 @@ func UploadRawActivityDetails(ctx context.Context, db *sqlx.DB, provider string,
 
 	objectKey := fmt.Sprintf("activity_details/%s/raw/%s.json", provider, activityRaw.ID)
 
-	res, err := UploadObject(ctx, objectKey, streamData, nil)
+	res, err := objectStore.UploadObject(ctx, objectKey, streamData, nil)
 	if err != nil {
 		return fmt.Errorf("Error uploading activity streams: %w", err)
 	}

@@ -13,6 +13,31 @@ import (
 	"github.com/gabrieleangeletti/vo2/internal/generated/models"
 )
 
+// DBReader defines the interface for read-only database operations.
+// It's implemented by DBStore.
+type DBReader interface {
+	GetActivityEndurance(ctx context.Context, id uuid.UUID) (*activity.EnduranceActivity, error)
+	ListAthleteActivitiesEndurance(ctx context.Context, providerID int, athleteID uuid.UUID) ([]*activity.EnduranceActivity, error)
+	ListAthleteActivitiesEnduranceByIDs(ctx context.Context, ids []uuid.UUID) ([]*activity.EnduranceActivity, error)
+	ListActivitiesEnduranceByTag(ctx context.Context, providerID int, athleteID uuid.UUID, tag string) ([]*activity.EnduranceActivity, error)
+	GetActivityTags(ctx context.Context, activityID uuid.UUID) ([]*activity.ActivityTag, error)
+	GetAthlete(ctx context.Context, athleteID uuid.UUID) (*vo2.Athlete, error)
+	GetUserAthletes(ctx context.Context, userID uuid.UUID) ([]*vo2.Athlete, error)
+	GetAthleteCurrentMeasurements(ctx context.Context, athleteID uuid.UUID) (*vo2.AthleteCurrentMeasurements, error)
+	GetAthleteVolume(ctx context.Context, params vo2.GetAthleteVolumeParams) (map[stride.Sport][]*vo2.AthleteVolumeData, error)
+}
+
+// DBStore defines the interface for read and write database operations.
+// It's implemented by DBStore.
+type DBStore interface {
+	DBReader
+	UpsertAthlete(ctx context.Context, arg *vo2.Athlete) (*vo2.Athlete, error)
+	UpsertActivityEndurance(ctx context.Context, arg *activity.EnduranceActivity) (*activity.EnduranceActivity, error)
+	UpsertActivityThresholdAnalysis(ctx context.Context, arg *activity.ThresholdAnalysis) (*activity.ThresholdAnalysis, error)
+	UpsertTagsAndLinkActivity(ctx context.Context, a *activity.EnduranceActivity, tags []*activity.ActivityTag) error
+	SaveProviderActivityRawData(ctx context.Context, arg *activity.ProviderActivityRawData) (uuid.UUID, error)
+}
+
 // dbStore provides the implementation of the Store interface.
 // It uses a pgx connection pool and sqlc-generated queries.
 type dbStore struct {
@@ -20,7 +45,7 @@ type dbStore struct {
 	q  *models.Queries
 }
 
-func NewReader(db *sqlx.DB) vo2.Reader {
+func NewReader(db *sqlx.DB) DBReader {
 	return &dbStore{
 		db: db,
 		q:  models.New(db),
@@ -28,7 +53,7 @@ func NewReader(db *sqlx.DB) vo2.Reader {
 }
 
 // NewStore creates a new dbStore instance.
-func NewStore(db *sqlx.DB) vo2.Store {
+func NewStore(db *sqlx.DB) DBStore {
 	return &dbStore{
 		db: db,
 		q:  models.New(db),

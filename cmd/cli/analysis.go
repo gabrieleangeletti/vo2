@@ -17,8 +17,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/gabrieleangeletti/stride"
-	"github.com/gabrieleangeletti/vo2/internal"
-	"github.com/gabrieleangeletti/vo2/store"
 )
 
 func newAnalysisCmd(cfg config) *cobra.Command {
@@ -51,8 +49,6 @@ func evalThresholdAnalysisCmd(cfg config) *cobra.Command {
 
 			ctx := cmd.Context()
 
-			store := store.NewStore(cfg.DB)
-
 			datasetRaw, err := os.ReadFile("data/datasets/threshold_analysis.json")
 			if err != nil {
 				log.Fatal(err)
@@ -69,7 +65,7 @@ func evalThresholdAnalysisCmd(cfg config) *cobra.Command {
 				datasetMap[uuid.MustParse(row.ID)] = row
 			}
 
-			measurements, err := store.GetAthleteCurrentMeasurements(ctx, athleteID)
+			measurements, err := cfg.dbStore.GetAthleteCurrentMeasurements(ctx, athleteID)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -79,7 +75,7 @@ func evalThresholdAnalysisCmd(cfg config) *cobra.Command {
 				ids = append(ids, uuid.MustParse(row.ID))
 			}
 
-			activities, err := store.ListAthleteActivitiesEnduranceByIDs(ctx, ids)
+			activities, err := cfg.dbStore.ListAthleteActivitiesEnduranceByIDs(ctx, ids)
 			if err != nil {
 				log.Fatal("Error getting activities: ", err)
 			}
@@ -102,7 +98,7 @@ func evalThresholdAnalysisCmd(cfg config) *cobra.Command {
 					continue
 				}
 
-				data, err := internal.DownloadObject(ctx, act.GpxFileURI)
+				data, err := cfg.objectStore.DownloadObject(ctx, act.GpxFileURI)
 				if err != nil {
 					log.Fatal(err)
 				}
