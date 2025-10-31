@@ -103,7 +103,7 @@ func evalThresholdAnalysisCmd(cfg config) *cobra.Command {
 					log.Fatal(err)
 				}
 
-				_, ts, _, err := stride.ParseGPXFileFromMemory(data)
+				_, ts, err := stride.ParseGPXFileFromMemory(data)
 				if err != nil {
 					if errors.Is(err, stride.ErrNoTrackPoints) {
 						slog.Warn("Activity has no track points", "id", act.ID)

@@ -527,12 +527,7 @@ func stravaWebhookHandler(db *sqlx.DB, dbStore store.DBStore, objectStore store.
 					log.Fatal(err)
 				}
 
-				sport, err := stravaActivity.Sport()
-				if err != nil {
-					log.Fatal(err)
-				}
-
-				gpxData, err := stride.CreateGPXFileInMemory(strideActivity, ts, sport)
+				gpxData, err := stride.CreateGPXFileInMemory(strideActivity, ts)
 				if err != nil {
 					log.Fatal(err)
 				}

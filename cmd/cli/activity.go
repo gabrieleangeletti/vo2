@@ -121,12 +121,7 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 						log.Fatal(err)
 					}
 
-					sport, err := stravaActivity.Sport()
-					if err != nil {
-						log.Fatal(err)
-					}
-
-					gpxData, err := stride.CreateGPXFileInMemory(strideActivity, ts, sport)
+					gpxData, err := stride.CreateGPXFileInMemory(strideActivity, ts)
 					if err != nil {
 						log.Fatal(err)
 					}
@@ -242,7 +237,7 @@ func analyzeActivityThresholdsCmd(cfg config) *cobra.Command {
 					log.Fatal(err)
 				}
 
-				_, ts, _, err := stride.ParseGPXFileFromMemory(data)
+				_, ts, err := stride.ParseGPXFileFromMemory(data)
 				if err != nil {
 					if errors.Is(err, stride.ErrNoTrackPoints) {
 						_, err = cfg.dbStore.UpsertActivityThresholdAnalysis(ctx, &activity.ThresholdAnalysis{
