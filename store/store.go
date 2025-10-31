@@ -13,9 +13,9 @@ import (
 	"github.com/gabrieleangeletti/vo2/internal/generated/models"
 )
 
-// DBReader defines the interface for read-only database operations.
-// It's implemented by DBStore.
-type DBReader interface {
+// Reader defines the interface for read-only database operations.
+// It's implemented by Store.
+type Reader interface {
 	GetActivityEndurance(ctx context.Context, id uuid.UUID) (*activity.EnduranceActivity, error)
 	ListAthleteActivitiesEndurance(ctx context.Context, providerID int, athleteID uuid.UUID) ([]*activity.EnduranceActivity, error)
 	ListAthleteActivitiesEnduranceByIDs(ctx context.Context, ids []uuid.UUID) ([]*activity.EnduranceActivity, error)
@@ -27,10 +27,10 @@ type DBReader interface {
 	GetAthleteVolume(ctx context.Context, params vo2.GetAthleteVolumeParams) (map[stride.Sport][]*vo2.AthleteVolumeData, error)
 }
 
-// DBStore defines the interface for read and write database operations.
-// It's implemented by DBStore.
-type DBStore interface {
-	DBReader
+// Store defines the interface for read and write database operations.
+// It's implemented by Store.
+type Store interface {
+	Reader
 	UpsertAthlete(ctx context.Context, arg *vo2.Athlete) (*vo2.Athlete, error)
 	UpsertActivityEndurance(ctx context.Context, arg *activity.EnduranceActivity) (*activity.EnduranceActivity, error)
 	UpsertActivityThresholdAnalysis(ctx context.Context, arg *activity.ThresholdAnalysis) (*activity.ThresholdAnalysis, error)
@@ -40,27 +40,27 @@ type DBStore interface {
 
 // dbStore provides the implementation of the Store interface.
 // It uses a pgx connection pool and sqlc-generated queries.
-type dbStore struct {
+type store struct {
 	db *sqlx.DB
 	q  *models.Queries
 }
 
-func NewReader(db *sqlx.DB) DBReader {
-	return &dbStore{
+func NewReader(db *sqlx.DB) Reader {
+	return &store{
 		db: db,
 		q:  models.New(db),
 	}
 }
 
-// NewStore creates a new dbStore instance.
-func NewStore(db *sqlx.DB) DBStore {
-	return &dbStore{
+// NewStore creates a new store instance.
+func NewStore(db *sqlx.DB) Store {
+	return &store{
 		db: db,
 		q:  models.New(db),
 	}
 }
 
-func (s *dbStore) UpsertAthlete(ctx context.Context, arg *vo2.Athlete) (*vo2.Athlete, error) {
+func (s *store) UpsertAthlete(ctx context.Context, arg *vo2.Athlete) (*vo2.Athlete, error) {
 	res, err := s.q.UpsertAthlete(ctx, arg.ToUpsertParams())
 	if err != nil {
 		return nil, err
@@ -69,7 +69,7 @@ func (s *dbStore) UpsertAthlete(ctx context.Context, arg *vo2.Athlete) (*vo2.Ath
 	return newAthlete(res), nil
 }
 
-func (s *dbStore) GetAthlete(ctx context.Context, athleteID uuid.UUID) (*vo2.Athlete, error) {
+func (s *store) GetAthlete(ctx context.Context, athleteID uuid.UUID) (*vo2.Athlete, error) {
 	res, err := s.q.GetAthleteByID(ctx, athleteID)
 	if err != nil {
 		return nil, err
@@ -79,7 +79,7 @@ func (s *dbStore) GetAthlete(ctx context.Context, athleteID uuid.UUID) (*vo2.Ath
 }
 
 // GetUserAthletes retrieves the athletes associated with a user.
-func (s *dbStore) GetUserAthletes(ctx context.Context, userID uuid.UUID) ([]*vo2.Athlete, error) {
+func (s *store) GetUserAthletes(ctx context.Context, userID uuid.UUID) ([]*vo2.Athlete, error) {
 	res, err := s.q.GetUserAthletes(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -95,7 +95,7 @@ func (s *dbStore) GetUserAthletes(ctx context.Context, userID uuid.UUID) ([]*vo2
 }
 
 // GetAthleteCurrentMeasurements retrieves the current measurements for an athlete.
-func (s *dbStore) GetAthleteCurrentMeasurements(ctx context.Context, athleteID uuid.UUID) (*vo2.AthleteCurrentMeasurements, error) {
+func (s *store) GetAthleteCurrentMeasurements(ctx context.Context, athleteID uuid.UUID) (*vo2.AthleteCurrentMeasurements, error) {
 	res, err := s.q.GetAthleteCurrentMeasurements(ctx, athleteID)
 	if err != nil {
 		return nil, err
@@ -104,7 +104,7 @@ func (s *dbStore) GetAthleteCurrentMeasurements(ctx context.Context, athleteID u
 	return newAthleteCurrentMeasurements(res), nil
 }
 
-func (s *dbStore) UpsertActivityThresholdAnalysis(ctx context.Context, arg *activity.ThresholdAnalysis) (*activity.ThresholdAnalysis, error) {
+func (s *store) UpsertActivityThresholdAnalysis(ctx context.Context, arg *activity.ThresholdAnalysis) (*activity.ThresholdAnalysis, error) {
 	res, err := s.q.UpsertActivityThresholdAnalysis(ctx, arg.ToUpsertParams())
 	if err != nil {
 		return nil, err
@@ -114,7 +114,7 @@ func (s *dbStore) UpsertActivityThresholdAnalysis(ctx context.Context, arg *acti
 }
 
 // UpsertActivityEndurance inserts or updates an endurance activity.
-func (s *dbStore) UpsertActivityEndurance(ctx context.Context, arg *activity.EnduranceActivity) (*activity.EnduranceActivity, error) {
+func (s *store) UpsertActivityEndurance(ctx context.Context, arg *activity.EnduranceActivity) (*activity.EnduranceActivity, error) {
 	res, err := s.q.UpsertActivityEndurance(ctx, arg.ToUpsertParams())
 	if err != nil {
 		return nil, err
@@ -124,7 +124,7 @@ func (s *dbStore) UpsertActivityEndurance(ctx context.Context, arg *activity.End
 }
 
 // GetActivityEndurance retrieves an endurance activity by its ID.
-func (s *dbStore) GetActivityEndurance(ctx context.Context, id uuid.UUID) (*activity.EnduranceActivity, error) {
+func (s *store) GetActivityEndurance(ctx context.Context, id uuid.UUID) (*activity.EnduranceActivity, error) {
 	res, err := s.q.GetActivityEndurance(ctx, id)
 	if err != nil {
 		return nil, err
@@ -133,7 +133,7 @@ func (s *dbStore) GetActivityEndurance(ctx context.Context, id uuid.UUID) (*acti
 	return activity.NewEnduranceActivity(res), nil
 }
 
-func (s *dbStore) ListAthleteActivitiesEndurance(ctx context.Context, providerID int, athleteID uuid.UUID) ([]*activity.EnduranceActivity, error) {
+func (s *store) ListAthleteActivitiesEndurance(ctx context.Context, providerID int, athleteID uuid.UUID) ([]*activity.EnduranceActivity, error) {
 	res, err := s.q.ListAthleteActivitiesEndurance(ctx, models.ListAthleteActivitiesEnduranceParams{
 		ProviderID: int32(providerID),
 		AthleteID:  athleteID,
@@ -150,7 +150,7 @@ func (s *dbStore) ListAthleteActivitiesEndurance(ctx context.Context, providerID
 	return activities, nil
 }
 
-func (s *dbStore) ListAthleteActivitiesEnduranceByIDs(ctx context.Context, ids []uuid.UUID) ([]*activity.EnduranceActivity, error) {
+func (s *store) ListAthleteActivitiesEnduranceByIDs(ctx context.Context, ids []uuid.UUID) ([]*activity.EnduranceActivity, error) {
 	res, err := s.q.ListActivitiesEnduranceById(ctx, ids)
 	if err != nil {
 		return nil, err
@@ -165,7 +165,7 @@ func (s *dbStore) ListAthleteActivitiesEnduranceByIDs(ctx context.Context, ids [
 }
 
 // ListActivitiesEnduranceByTag retrieves a list of activities by tag.
-func (s *dbStore) ListActivitiesEnduranceByTag(ctx context.Context, providerID int, athleteID uuid.UUID, tag string) ([]*activity.EnduranceActivity, error) {
+func (s *store) ListActivitiesEnduranceByTag(ctx context.Context, providerID int, athleteID uuid.UUID, tag string) ([]*activity.EnduranceActivity, error) {
 	res, err := s.q.ListActivitiesEnduranceByTag(ctx, models.ListActivitiesEnduranceByTagParams{
 		ProviderID: int32(providerID),
 		AthleteID:  athleteID,
@@ -184,7 +184,7 @@ func (s *dbStore) ListActivitiesEnduranceByTag(ctx context.Context, providerID i
 }
 
 // GetActivityTags retrieves all tags for a given activity.
-func (s *dbStore) GetActivityTags(ctx context.Context, activityID uuid.UUID) ([]*activity.ActivityTag, error) {
+func (s *store) GetActivityTags(ctx context.Context, activityID uuid.UUID) ([]*activity.ActivityTag, error) {
 	res, err := s.q.GetActivityTags(ctx, activityID)
 	if err != nil {
 		return nil, err
@@ -198,7 +198,7 @@ func (s *dbStore) GetActivityTags(ctx context.Context, activityID uuid.UUID) ([]
 	return tags, nil
 }
 
-func (s *dbStore) UpsertTagsAndLinkActivity(ctx context.Context, a *activity.EnduranceActivity, tags []*activity.ActivityTag) error {
+func (s *store) UpsertTagsAndLinkActivity(ctx context.Context, a *activity.EnduranceActivity, tags []*activity.ActivityTag) error {
 	if len(tags) == 0 {
 		return nil
 	}
@@ -232,7 +232,7 @@ func (s *dbStore) UpsertTagsAndLinkActivity(ctx context.Context, a *activity.End
 	return nil
 }
 
-func (s *dbStore) SaveProviderActivityRawData(ctx context.Context, arg *activity.ProviderActivityRawData) (uuid.UUID, error) {
+func (s *store) SaveProviderActivityRawData(ctx context.Context, arg *activity.ProviderActivityRawData) (uuid.UUID, error) {
 	query := `
 	INSERT INTO vo2.provider_activity_raw_data
 		(provider_id, athlete_id, provider_activity_id, start_time, elapsed_time, iana_timezone, utc_offset, data, detailed_activity_uri)
@@ -270,7 +270,7 @@ func (s *dbStore) SaveProviderActivityRawData(ctx context.Context, arg *activity
 }
 
 // GetAthleteVolume retrieves volume data for an athlete by provider, frequency, sports, and time range.
-func (s *dbStore) GetAthleteVolume(ctx context.Context, params vo2.GetAthleteVolumeParams) (map[stride.Sport][]*vo2.AthleteVolumeData, error) {
+func (s *store) GetAthleteVolume(ctx context.Context, params vo2.GetAthleteVolumeParams) (map[stride.Sport][]*vo2.AthleteVolumeData, error) {
 	sports := make([]string, len(params.Sports))
 	for i, sport := range params.Sports {
 		sports[i] = strings.ToLower(string(sport))

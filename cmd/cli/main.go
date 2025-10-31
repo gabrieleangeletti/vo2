@@ -15,7 +15,7 @@ import (
 
 type config struct {
 	DB          *sqlx.DB // For backward compatibility. Should be replaced with `dbStore`.
-	dbStore     store.DBStore
+	dbStore     store.Store
 	objectStore store.ObjectStore
 }
 

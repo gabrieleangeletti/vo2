@@ -39,7 +39,7 @@ const (
 type Handler struct {
 	db          *sqlx.DB
 	handler     http.Handler
-	dbStore     store.DBStore
+	dbStore     store.Store
 	objectStore store.ObjectStore
 	middlewares []func(http.Handler) http.Handler
 }
@@ -228,7 +228,7 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 	return nil
 }
 
-func stravaAuthHandler(db *sqlx.DB, dbStore store.DBStore) func(http.ResponseWriter, *http.Request) {
+func stravaAuthHandler(db *sqlx.DB, dbStore store.Store) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.Background()
 
@@ -368,7 +368,7 @@ func stravaRegisterWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.R
 	}
 }
 
-func stravaWebhookHandler(db *sqlx.DB, dbStore store.DBStore, objectStore store.ObjectStore) func(http.ResponseWriter, *http.Request) {
+func stravaWebhookHandler(db *sqlx.DB, dbStore store.Store, objectStore store.ObjectStore) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		slog.Info("Received Strava Webhook")
 
@@ -634,7 +634,7 @@ func queueHistoricalDataTasks(ctx context.Context, athleteID uuid.UUID, provider
 	return nil
 }
 
-func athleteVolumeHandler(db *sqlx.DB, dbStore store.DBStore) func(http.ResponseWriter, *http.Request) {
+func athleteVolumeHandler(db *sqlx.DB, dbStore store.Store) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		apiKey := GetSecret("VO2_API_KEY", true)
 		if r.Header.Get("x-vo2-api-key") != apiKey {
