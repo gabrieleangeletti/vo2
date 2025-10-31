@@ -27,6 +27,7 @@ import (
 	"github.com/gabrieleangeletti/vo2/database"
 	"github.com/gabrieleangeletti/vo2/provider"
 	"github.com/gabrieleangeletti/vo2/store"
+	"github.com/gabrieleangeletti/vo2/util"
 )
 
 type Environment string
@@ -39,21 +40,19 @@ const (
 type Handler struct {
 	db          *sqlx.DB
 	handler     http.Handler
-	dbStore     store.Store
-	objectStore store.ObjectStore
+	store       store.Store
 	middlewares []func(http.Handler) http.Handler
 }
 
 func NewHandler(db *sqlx.DB, options ...func(*Handler)) *Handler {
-	objectStore, err := store.NewS3ObjectStore(GetSecret("AWS_S3_BUCKET_NAME", true))
+	s, err := store.NewStore(db)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	h := &Handler{
-		db:          db,
-		dbStore:     store.NewStore(db),
-		objectStore: objectStore,
+		db:    db,
+		store: s,
 	}
 
 	for _, opt := range options {
@@ -62,11 +61,11 @@ func NewHandler(db *sqlx.DB, options ...func(*Handler)) *Handler {
 
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /providers/strava/auth/callback", stravaAuthHandler(h.db, h.dbStore))
+	mux.HandleFunc("GET /providers/strava/auth/callback", stravaAuthHandler(h.db, h.store))
 	mux.HandleFunc("GET /providers/strava/webhook", stravaRegisterWebhookHandler(h.db))
-	mux.HandleFunc("POST /providers/strava/webhook", stravaWebhookHandler(h.db, h.dbStore, h.objectStore))
+	mux.HandleFunc("POST /providers/strava/webhook", stravaWebhookHandler(h.db, h.store, h.store.GetObjectStore()))
 
-	mux.HandleFunc("GET /athletes/{athleteID}/metrics/volume", athleteVolumeHandler(h.db, h.dbStore))
+	mux.HandleFunc("GET /athletes/{athleteID}/metrics/volume", athleteVolumeHandler(h.db, h.store))
 
 	h.handler = h.chain(mux)
 
@@ -174,7 +173,7 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 					return fmt.Errorf("failed to get activity streams: %w", err)
 				}
 
-				err = UploadRawActivityDetails(ctx, h.db, h.objectStore, prov.Slug, existing, streams)
+				err = UploadRawActivityDetails(ctx, h.db, h.store.GetObjectStore(), prov.Slug, existing, streams)
 				if err != nil {
 					return fmt.Errorf("failed to upload raw activity details: %w", err)
 				}
@@ -203,7 +202,7 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 			Data:               data,
 		}
 
-		activityRawID, err := h.dbStore.SaveProviderActivityRawData(ctx, &activityRaw)
+		activityRawID, err := h.store.SaveProviderActivityRawData(ctx, &activityRaw)
 		if err != nil {
 			return fmt.Errorf("failed to save activity: %w", err)
 		}
@@ -215,7 +214,7 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 			return fmt.Errorf("failed to get activity streams: %w", err)
 		}
 
-		err = UploadRawActivityDetails(ctx, h.db, h.objectStore, prov.Slug, &activityRaw, streams)
+		err = UploadRawActivityDetails(ctx, h.db, h.store.GetObjectStore(), prov.Slug, &activityRaw, streams)
 		if err != nil {
 			return fmt.Errorf("failed to upload raw activity details: %w", err)
 		}
@@ -245,8 +244,8 @@ func stravaAuthHandler(db *sqlx.DB, dbStore store.Store) func(http.ResponseWrite
 		}
 
 		auth := strava.NewAuth(
-			GetSecret("STRAVA_CLIENT_ID", true),
-			GetSecret("STRAVA_CLIENT_SECRET", true),
+			util.GetSecret("STRAVA_CLIENT_ID", true),
+			util.GetSecret("STRAVA_CLIENT_SECRET", true),
 		)
 
 		tokenResponse, err := auth.ExchangeCodeForAccessToken(code)
@@ -636,7 +635,7 @@ func queueHistoricalDataTasks(ctx context.Context, athleteID uuid.UUID, provider
 
 func athleteVolumeHandler(db *sqlx.DB, dbStore store.Store) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		apiKey := GetSecret("VO2_API_KEY", true)
+		apiKey := util.GetSecret("VO2_API_KEY", true)
 		if r.Header.Get("x-vo2-api-key") != apiKey {
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)
 			return

@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/gabrieleangeletti/vo2/util"
 	"github.com/google/uuid"
 )
 
@@ -37,7 +38,7 @@ func NewSQSClient() (*SQSClient, error) {
 	}
 
 	client := sqs.NewFromConfig(cfg)
-	queueURL := GetSecret("HISTORICAL_DATA_QUEUE_URL", true)
+	queueURL := util.GetSecret("HISTORICAL_DATA_QUEUE_URL", true)
 
 	return &SQSClient{
 		client:   client,

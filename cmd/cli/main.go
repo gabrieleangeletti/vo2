@@ -14,9 +14,8 @@ import (
 )
 
 type config struct {
-	DB          *sqlx.DB // For backward compatibility. Should be replaced with `dbStore`.
-	dbStore     store.Store
-	objectStore store.ObjectStore
+	DB    *sqlx.DB // For backward compatibility. Should be replaced with `dbStore`.
+	store store.Store
 }
 
 func newRootCmd(cfg config) *cobra.Command {
@@ -41,17 +40,14 @@ func main() {
 		log.Fatal(err)
 	}
 
-	dbStore := store.NewStore(db)
-
-	objectStore, err := store.NewS3ObjectStore(internal.GetSecret("AWS_S3_BUCKET_NAME", true))
+	s, err := store.NewStore(db)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	cfg := config{
-		DB:          db,
-		dbStore:     dbStore,
-		objectStore: objectStore,
+		DB:    db,
+		store: s,
 	}
 
 	rootCmd := newRootCmd(cfg)

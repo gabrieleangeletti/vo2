@@ -14,47 +14,49 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+
+	"github.com/gabrieleangeletti/vo2/util"
 )
 
 type ObjectStore interface {
-	UploadObject(ctx context.Context, key string, data []byte, opts *UploadOptions) (*UploadResult, error)
+	UploadObject(ctx context.Context, key string, data []byte, opts *uploadOptions) (*uploadResult, error)
 	DownloadObject(ctx context.Context, keyOrURL string) ([]byte, error)
 	ListObjects(ctx context.Context, prefix string) ([]string, error)
 }
 
-type UploadOptions struct {
+type uploadOptions struct {
 	ContentType          string
 	ACL                  types.ObjectCannedACL
 	Metadata             map[string]string
 	ServerSideEncryption *types.ServerSideEncryption
 }
 
-type UploadResult struct {
+type uploadResult struct {
 	Location string
 	ETag     string
 	Key      string
 }
 
-type S3ObjectStore struct {
+type s3ObjectStore struct {
 	client     *s3.Client
 	bucketName string
 }
 
-func NewS3ObjectStore(bucketName string) (*S3ObjectStore, error) {
+func newS3ObjectStore() (*s3ObjectStore, error) {
 	cfg, err := config.LoadDefaultConfig(context.Background())
 	if err != nil {
 		return nil, err
 	}
 
-	return &S3ObjectStore{
+	return &s3ObjectStore{
 		client:     s3.NewFromConfig(cfg),
-		bucketName: bucketName,
+		bucketName: util.GetSecret("AWS_S3_BUCKET_NAME", true),
 	}, nil
 }
 
-func (s *S3ObjectStore) UploadObject(ctx context.Context, key string, data []byte, opts *UploadOptions) (*UploadResult, error) {
+func (s *s3ObjectStore) UploadObject(ctx context.Context, key string, data []byte, opts *uploadOptions) (*uploadResult, error) {
 	if opts == nil {
-		opts = &UploadOptions{}
+		opts = &uploadOptions{}
 	}
 
 	if opts.ContentType == "" {
@@ -69,7 +71,7 @@ func (s *S3ObjectStore) UploadObject(ctx context.Context, key string, data []byt
 	return uploadReader(ctx, s.client, reader, s.bucketName, key, opts)
 }
 
-func (s *S3ObjectStore) DownloadObject(ctx context.Context, keyOrURL string) ([]byte, error) {
+func (s *s3ObjectStore) DownloadObject(ctx context.Context, keyOrURL string) ([]byte, error) {
 	var inputBucket, inputKey string
 
 	if strings.HasPrefix(keyOrURL, "https://") {
@@ -110,7 +112,7 @@ func (s *S3ObjectStore) DownloadObject(ctx context.Context, keyOrURL string) ([]
 	return data, nil
 }
 
-func (s *S3ObjectStore) ListObjects(ctx context.Context, prefix string) ([]string, error) {
+func (s *s3ObjectStore) ListObjects(ctx context.Context, prefix string) ([]string, error) {
 	keys := []string{}
 	paginator := s3.NewListObjectsV2Paginator(s.client, &s3.ListObjectsV2Input{
 		Bucket: aws.String(s.bucketName),
@@ -131,7 +133,7 @@ func (s *S3ObjectStore) ListObjects(ctx context.Context, prefix string) ([]strin
 	return keys, nil
 }
 
-func uploadReader(ctx context.Context, client *s3.Client, reader io.Reader, bucketName, key string, opts *UploadOptions) (*UploadResult, error) {
+func uploadReader(ctx context.Context, client *s3.Client, reader io.Reader, bucketName, key string, opts *uploadOptions) (*uploadResult, error) {
 	putObjectInput := &s3.PutObjectInput{
 		Bucket:      aws.String(bucketName),
 		Key:         aws.String(key),
@@ -158,7 +160,7 @@ func uploadReader(ctx context.Context, client *s3.Client, reader io.Reader, buck
 
 	location := fmt.Sprintf("https://%s.s3.amazonaws.com/%s", bucketName, key)
 
-	return &UploadResult{
+	return &uploadResult{
 		Location: location,
 		ETag:     aws.ToString(result.ETag),
 		Key:      key,

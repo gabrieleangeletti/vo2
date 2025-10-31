@@ -10,6 +10,7 @@ import (
 
 	"github.com/gabrieleangeletti/stride/strava"
 	"github.com/gabrieleangeletti/vo2/provider"
+	"github.com/gabrieleangeletti/vo2/util"
 )
 
 const (
@@ -35,8 +36,8 @@ type StravaDriver struct {
 
 func NewStravaDriver() *StravaDriver {
 	return &StravaDriver{
-		clientID:     GetSecret("STRAVA_CLIENT_ID", true),
-		clientSecret: GetSecret("STRAVA_CLIENT_SECRET", true),
+		clientID:     util.GetSecret("STRAVA_CLIENT_ID", true),
+		clientSecret: util.GetSecret("STRAVA_CLIENT_SECRET", true),
 	}
 }
 

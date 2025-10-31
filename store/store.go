@@ -36,28 +36,48 @@ type Store interface {
 	UpsertActivityThresholdAnalysis(ctx context.Context, arg *activity.ThresholdAnalysis) (*activity.ThresholdAnalysis, error)
 	UpsertTagsAndLinkActivity(ctx context.Context, a *activity.EnduranceActivity, tags []*activity.ActivityTag) error
 	SaveProviderActivityRawData(ctx context.Context, arg *activity.ProviderActivityRawData) (uuid.UUID, error)
+
+	// Temporary until we migrate away from using the object store outside of this package.
+	GetObjectStore() ObjectStore
 }
 
-// dbStore provides the implementation of the Store interface.
+// store provides the implementation of the Store interface.
 // It uses a pgx connection pool and sqlc-generated queries.
 type store struct {
-	db *sqlx.DB
-	q  *models.Queries
+	db  *sqlx.DB
+	obj ObjectStore
+	q   *models.Queries
 }
 
-func NewReader(db *sqlx.DB) Reader {
-	return &store{
-		db: db,
-		q:  models.New(db),
+func NewReader(db *sqlx.DB) (Reader, error) {
+	obj, err := newS3ObjectStore()
+	if err != nil {
+		return nil, err
 	}
+
+	return &store{
+		db:  db,
+		obj: obj,
+		q:   models.New(db),
+	}, nil
 }
 
 // NewStore creates a new store instance.
-func NewStore(db *sqlx.DB) Store {
-	return &store{
-		db: db,
-		q:  models.New(db),
+func NewStore(db *sqlx.DB) (Store, error) {
+	obj, err := newS3ObjectStore()
+	if err != nil {
+		return nil, err
 	}
+
+	return &store{
+		db:  db,
+		obj: obj,
+		q:   models.New(db),
+	}, nil
+}
+
+func (s *store) GetObjectStore() ObjectStore {
+	return s.obj
 }
 
 func (s *store) UpsertAthlete(ctx context.Context, arg *vo2.Athlete) (*vo2.Athlete, error) {
