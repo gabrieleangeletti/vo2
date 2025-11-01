@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -34,7 +35,8 @@ type Store interface {
 	Reader
 	UpsertAthlete(ctx context.Context, arg *vo2.Athlete) (*vo2.Athlete, error)
 	UpsertActivityEndurance(ctx context.Context, arg *activity.EnduranceActivity) (*activity.EnduranceActivity, error)
-	UploadActivityGPX(ctx context.Context, act *activity.EnduranceActivity, rawAct *stride.Activity, timeseries *stride.ActivityTimeseries) (string, error)
+	UploadActivityGPX(ctx context.Context, act *activity.EnduranceActivity, strideActivity *stride.Activity, timeseries *stride.ActivityTimeseries) (string, error)
+	StoreActivityEndurance(ctx context.Context, provider stride.Provider, activityRaw *activity.ProviderActivityRawData, rawAct stride.ActivityConvertible, ts stride.ActivityTimeseriesConvertible) (*activity.EnduranceActivity, error)
 	UpsertActivityThresholdAnalysis(ctx context.Context, arg *activity.ThresholdAnalysis) (*activity.ThresholdAnalysis, error)
 	UpsertTagsAndLinkActivity(ctx context.Context, a *activity.EnduranceActivity, tags []*activity.ActivityTag) error
 	SaveProviderActivityRawData(ctx context.Context, arg *activity.ProviderActivityRawData) (uuid.UUID, error)
@@ -146,13 +148,13 @@ func (s *store) UpsertActivityEndurance(ctx context.Context, arg *activity.Endur
 }
 
 // UploadActivityGPX generates a GPX file for an endurance activity, uploads it to the object storage, and returns its URL.
-func (s *store) UploadActivityGPX(ctx context.Context, act *activity.EnduranceActivity, rawAct *stride.Activity, timeseries *stride.ActivityTimeseries) (string, error) {
-	gpxData, err := stride.CreateGPXFileInMemory(rawAct, timeseries)
+func (s *store) UploadActivityGPX(ctx context.Context, act *activity.EnduranceActivity, strideActivity *stride.Activity, timeseries *stride.ActivityTimeseries) (string, error) {
+	gpxData, err := stride.CreateGPXFileInMemory(strideActivity, timeseries)
 	if err != nil {
 		return "", err
 	}
 
-	objectKey := fmt.Sprintf("activity_details/%s/gpx/%s.gpx", rawAct.Provider, act.ID)
+	objectKey := fmt.Sprintf("activity_details/%s/gpx/%s.gpx", strideActivity.Provider, act.ID)
 
 	res, err := s.obj.UploadObject(ctx, objectKey, gpxData, nil)
 	if err != nil {
@@ -160,6 +162,53 @@ func (s *store) UploadActivityGPX(ctx context.Context, act *activity.EnduranceAc
 	}
 
 	return res.Location, nil
+}
+
+// StoreActivityEndurance is a higher-level function that does the e2e storing of an endurance activity.
+//
+// * Converts the raw provider activity into the standardized format.
+// * Generates and uploads the activity's GPX file.
+// * Calculates the activity's HR metrics.
+// * Upserts the activity.
+func (s *store) StoreActivityEndurance(ctx context.Context, provider stride.Provider, activityRaw *activity.ProviderActivityRawData, rawAct stride.ActivityConvertible, ts stride.ActivityTimeseriesConvertible) (*activity.EnduranceActivity, error) {
+	act, err := activityRaw.ToEnduranceActivity(provider)
+	if err != nil {
+		if !(errors.Is(err, stride.ErrActivityIsNotEndurance) || errors.Is(err, stride.ErrUnsupportedSportType)) {
+			return nil, err
+		}
+	}
+
+	strideActivity, err := rawAct.ToActivity()
+	if err != nil {
+		return nil, err
+	}
+
+	timeseries, err := ts.ToTimeseries(strideActivity.StartTime)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(timeseries.Data) > 0 {
+		gpxFileURI, err := s.UploadActivityGPX(ctx, act, strideActivity, timeseries)
+		if err != nil {
+			return nil, err
+		}
+		act.GpxFileURI = gpxFileURI
+
+		hrMetrics, err := timeseries.HRMetrics()
+		if err != nil {
+			return nil, err
+		}
+		act.AvgHR = hrMetrics.AvgHR
+		act.MaxHR = hrMetrics.MaxHR
+	}
+
+	act, err = s.UpsertActivityEndurance(ctx, act)
+	if err != nil {
+		return nil, err
+	}
+
+	return act, nil
 }
 
 // GetActivityEndurance retrieves an endurance activity by its ID.

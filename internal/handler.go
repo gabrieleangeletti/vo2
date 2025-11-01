@@ -387,13 +387,6 @@ func stravaWebhookHandler(db *sqlx.DB, dbStore store.Store, objectStore store.Ob
 			return
 		}
 
-		providerMap, err := provider.GetMap(ctx, db)
-		if err != nil {
-			slog.Error(err.Error())
-			http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
-			return
-		}
-
 		user, err := GetUser(db, prov.ID, strconv.Itoa(event.OwnerID))
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
@@ -497,56 +490,7 @@ func stravaWebhookHandler(db *sqlx.DB, dbStore store.Store, objectStore store.Ob
 					return
 				}
 
-				act, err := activityRaw.ToEnduranceActivity(providerMap)
-				if err != nil {
-					if !(errors.Is(err, stride.ErrActivityIsNotEndurance) || errors.Is(err, stride.ErrUnsupportedSportType)) {
-						slog.Error(err.Error())
-						http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
-						return
-					}
-				}
-
-				upsertedAct, err := dbStore.UpsertActivityEndurance(ctx, act)
-				if err != nil {
-					slog.Error(err.Error())
-					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
-					return
-				}
-
-				act.ID = upsertedAct.ID
-
-				strideActivity, err := stravaActivity.ToActivity()
-				if err != nil {
-					slog.Error(err.Error())
-					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
-					return
-				}
-
-				timeseries, err := streams.ToTimeseries(strideActivity.StartTime)
-				if err != nil {
-					slog.Error(err.Error())
-					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
-					return
-				}
-
-				gpxFileURI, err := dbStore.UploadActivityGPX(ctx, act, strideActivity, timeseries)
-				if err != nil {
-					slog.Error(err.Error())
-					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
-					return
-				}
-				act.GpxFileURI = gpxFileURI
-
-				hrMetrics, err := timeseries.HRMetrics()
-				if err != nil {
-					slog.Error(err.Error())
-					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
-					return
-				}
-				act.AvgHR = hrMetrics.AvgHR
-				act.MaxHR = hrMetrics.MaxHR
-
-				act, err = dbStore.UpsertActivityEndurance(ctx, act)
+				act, err := dbStore.StoreActivityEndurance(ctx, stride.ProviderStrava, &activityRaw, stravaActivity, streams)
 				if err != nil {
 					slog.Error(err.Error())
 					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)

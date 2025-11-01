@@ -34,13 +34,8 @@ type ProviderActivityRawData struct {
 	DeletedAt           sql.NullTime    `json:"deletedAt" db:"deleted_at"`
 }
 
-func (a *ProviderActivityRawData) ToEnduranceActivity(providerMap map[int]provider.Provider) (*EnduranceActivity, error) {
-	prov, ok := providerMap[a.ProviderID]
-	if !ok {
-		return nil, fmt.Errorf("%w: %d", provider.ErrProviderNotFound, a.ProviderID)
-	}
-
-	switch prov.Slug {
+func (a *ProviderActivityRawData) ToEnduranceActivity(prov stride.Provider) (*EnduranceActivity, error) {
+	switch prov {
 	case "strava":
 		var act strava.ActivityDetailed
 		err := json.Unmarshal(a.Data, &act)

@@ -75,20 +75,18 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 					log.Fatal(err)
 				}
 
-				act, err := raw.ToEnduranceActivity(providerMap)
-				if err != nil {
-					if errors.Is(err, stride.ErrActivityIsNotEndurance) ||
-						errors.Is(err, stride.ErrUnsupportedSportType) {
-						continue
-					}
-
-					log.Fatal(err)
+				prov, ok := providerMap[raw.ProviderID]
+				if !ok {
+					log.Fatalf("provider %d not found", raw.ProviderID)
 				}
 
-				act, err = cfg.store.UpsertActivityEndurance(ctx, act)
+				var stravaActivity strava.ActivityDetailed
+				err = json.Unmarshal(raw.Data, &stravaActivity)
 				if err != nil {
 					log.Fatal(err)
 				}
+
+				var streams *strava.ActivityStream
 
 				if raw.DetailedActivityURI.Valid {
 					data, err := cfg.store.GetObjectStore().DownloadObject(ctx, raw.DetailedActivityURI.String)
@@ -96,45 +94,15 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 						log.Fatal(err)
 					}
 
-					var streams *strava.ActivityStream
 					err = json.Unmarshal(data, &streams)
 					if err != nil {
 						log.Fatal(err)
 					}
+				}
 
-					var stravaActivity strava.ActivityDetailed
-					err = json.Unmarshal(raw.Data, &stravaActivity)
-					if err != nil {
-						log.Fatal(err)
-					}
-
-					strideActivity, err := stravaActivity.ToActivity()
-					if err != nil {
-						log.Fatal(err)
-					}
-
-					timeseries, err := streams.ToTimeseries(strideActivity.StartTime)
-					if err != nil {
-						log.Fatal(err)
-					}
-
-					gpxFileURI, err := cfg.store.UploadActivityGPX(ctx, act, strideActivity, timeseries)
-					if err != nil {
-						log.Fatal(err)
-					}
-					act.GpxFileURI = gpxFileURI
-
-					hrMetrics, err := timeseries.HRMetrics()
-					if err != nil {
-						log.Fatal(err)
-					}
-					act.AvgHR = hrMetrics.AvgHR
-					act.MaxHR = hrMetrics.MaxHR
-
-					act, err = cfg.store.UpsertActivityEndurance(ctx, act)
-					if err != nil {
-						log.Fatal(err)
-					}
+				act, err := cfg.store.StoreActivityEndurance(ctx, stride.Provider(prov.Slug), raw, stravaActivity, streams)
+				if err != nil {
+					log.Fatal(err)
 				}
 
 				tags := act.ExtractActivityTags()
