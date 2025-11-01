@@ -62,7 +62,7 @@ func NewHandler(db *sqlx.DB, options ...func(*Handler)) *Handler {
 
 	mux.HandleFunc("GET /providers/strava/auth/callback", stravaAuthHandler(h.db, h.store))
 	mux.HandleFunc("GET /providers/strava/webhook", stravaRegisterWebhookHandler(h.db))
-	mux.HandleFunc("POST /providers/strava/webhook", stravaWebhookHandler(h.db, h.store, h.store.GetObjectStore()))
+	mux.HandleFunc("POST /providers/strava/webhook", stravaWebhookHandler(h.db, h.store))
 
 	mux.HandleFunc("GET /athletes/{athleteID}/metrics/volume", athleteVolumeHandler(h.db, h.store))
 
@@ -172,7 +172,7 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 					return fmt.Errorf("failed to get activity streams: %w", err)
 				}
 
-				err = UploadRawActivityDetails(ctx, h.db, h.store.GetObjectStore(), prov.Slug, existing, streams)
+				err = h.store.UploadRawActivityDetails(ctx, stride.Provider(prov.Slug), existing, streams)
 				if err != nil {
 					return fmt.Errorf("failed to upload raw activity details: %w", err)
 				}
@@ -213,7 +213,7 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 			return fmt.Errorf("failed to get activity streams: %w", err)
 		}
 
-		err = UploadRawActivityDetails(ctx, h.db, h.store.GetObjectStore(), prov.Slug, &activityRaw, streams)
+		err = h.store.UploadRawActivityDetails(ctx, stride.Provider(prov.Slug), &activityRaw, streams)
 		if err != nil {
 			return fmt.Errorf("failed to upload raw activity details: %w", err)
 		}
@@ -366,7 +366,7 @@ func stravaRegisterWebhookHandler(db *sqlx.DB) func(http.ResponseWriter, *http.R
 	}
 }
 
-func stravaWebhookHandler(db *sqlx.DB, dbStore store.Store, objectStore store.ObjectStore) func(http.ResponseWriter, *http.Request) {
+func stravaWebhookHandler(db *sqlx.DB, dbStore store.Store) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		slog.Info("Received Strava Webhook")
 
@@ -483,7 +483,7 @@ func stravaWebhookHandler(db *sqlx.DB, dbStore store.Store, objectStore store.Ob
 
 				activityRaw.ID = activityRawID
 
-				err = UploadRawActivityDetails(ctx, db, objectStore, prov.Slug, &activityRaw, streams)
+				err = dbStore.UploadRawActivityDetails(ctx, stride.ProviderStrava, &activityRaw, streams)
 				if err != nil {
 					slog.Error(err.Error())
 					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)

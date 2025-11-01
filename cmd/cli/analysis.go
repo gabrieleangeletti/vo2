@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/gabrieleangeletti/stride"
+	"github.com/gabrieleangeletti/vo2/activity"
 )
 
 func newAnalysisCmd(cfg config) *cobra.Command {
@@ -93,22 +94,18 @@ func evalThresholdAnalysisCmd(cfg config) *cobra.Command {
 					log.Fatal(err)
 				}
 
-				if act.GpxFileURI == "" {
-					slog.Warn("Activity has no GPX file", "id", act.ID)
-					continue
-				}
-
-				data, err := cfg.store.GetObjectStore().DownloadObject(ctx, act.GpxFileURI)
+				ts, err := cfg.store.GetActivityTimeseries(ctx, act)
 				if err != nil {
-					log.Fatal(err)
-				}
+					if errors.Is(err, activity.ErrNoGPXFile) {
+						slog.Warn("Activity has no GPX file", "id", act.ID)
+						continue
+					}
 
-				_, ts, err := stride.ParseGPXFileFromMemory(data)
-				if err != nil {
 					if errors.Is(err, stride.ErrNoTrackPoints) {
 						slog.Warn("Activity has no track points", "id", act.ID)
 						continue
 					}
+
 					log.Fatal(err)
 				}
 

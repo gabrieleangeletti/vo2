@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -19,6 +21,8 @@ import (
 // It's implemented by Store.
 type Reader interface {
 	GetActivityEndurance(ctx context.Context, id uuid.UUID) (*activity.EnduranceActivity, error)
+	GetActivityTimeseries(ctx context.Context, act *activity.EnduranceActivity) (*stride.ActivityTimeseries, error)
+	GetActivityRawTimeseries(ctx context.Context, activityRaw *activity.ProviderActivityRawData, ts stride.ActivityTimeseriesConvertible) error
 	ListAthleteActivitiesEndurance(ctx context.Context, providerID int, athleteID uuid.UUID) ([]*activity.EnduranceActivity, error)
 	ListAthleteActivitiesEnduranceByIDs(ctx context.Context, ids []uuid.UUID) ([]*activity.EnduranceActivity, error)
 	ListActivitiesEnduranceByTag(ctx context.Context, providerID int, athleteID uuid.UUID, tag string) ([]*activity.EnduranceActivity, error)
@@ -35,14 +39,12 @@ type Store interface {
 	Reader
 	UpsertAthlete(ctx context.Context, arg *vo2.Athlete) (*vo2.Athlete, error)
 	UpsertActivityEndurance(ctx context.Context, arg *activity.EnduranceActivity) (*activity.EnduranceActivity, error)
+	UploadRawActivityDetails(ctx context.Context, provider stride.Provider, activityRaw *activity.ProviderActivityRawData, ts stride.ActivityTimeseriesConvertible) error
 	UploadActivityGPX(ctx context.Context, act *activity.EnduranceActivity, strideActivity *stride.Activity, timeseries *stride.ActivityTimeseries) (string, error)
 	StoreActivityEndurance(ctx context.Context, provider stride.Provider, activityRaw *activity.ProviderActivityRawData, rawAct stride.ActivityConvertible, ts stride.ActivityTimeseriesConvertible) (*activity.EnduranceActivity, error)
 	UpsertActivityThresholdAnalysis(ctx context.Context, arg *activity.ThresholdAnalysis) (*activity.ThresholdAnalysis, error)
 	UpsertTagsAndLinkActivity(ctx context.Context, a *activity.EnduranceActivity, tags []*activity.ActivityTag) error
 	SaveProviderActivityRawData(ctx context.Context, arg *activity.ProviderActivityRawData) (uuid.UUID, error)
-
-	// Temporary until we migrate away from using the object store outside of this package.
-	GetObjectStore() ObjectStore
 }
 
 // store provides the implementation of the Store interface.
@@ -78,10 +80,6 @@ func NewStore(db *sqlx.DB) (Store, error) {
 		obj: obj,
 		q:   models.New(db),
 	}, nil
-}
-
-func (s *store) GetObjectStore() ObjectStore {
-	return s.obj
 }
 
 func (s *store) UpsertAthlete(ctx context.Context, arg *vo2.Athlete) (*vo2.Athlete, error) {
@@ -145,6 +143,33 @@ func (s *store) UpsertActivityEndurance(ctx context.Context, arg *activity.Endur
 	}
 
 	return activity.NewEnduranceActivity(res), nil
+}
+
+// UploadRawActivityDetails uploads raw activity details (e.g. activity streams for Strava) to the object storage.
+func (s *store) UploadRawActivityDetails(ctx context.Context, provider stride.Provider, activityRaw *activity.ProviderActivityRawData, streams stride.ActivityTimeseriesConvertible) error {
+	streamData, err := json.Marshal(streams)
+	if err != nil {
+		return err
+	}
+
+	objectKey := fmt.Sprintf("activity_details/%s/raw/%s.json", provider, activityRaw.ID)
+
+	res, err := s.obj.UploadObject(ctx, objectKey, streamData, nil)
+	if err != nil {
+		return err
+	}
+
+	activityRaw.DetailedActivityURI = sql.NullString{
+		String: res.Location,
+		Valid:  true,
+	}
+
+	err = activityRaw.Save(ctx, s.db)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // UploadActivityGPX generates a GPX file for an endurance activity, uploads it to the object storage, and returns its URL.
@@ -219,6 +244,45 @@ func (s *store) GetActivityEndurance(ctx context.Context, id uuid.UUID) (*activi
 	}
 
 	return activity.NewEnduranceActivity(res), nil
+}
+
+func (s *store) GetActivityTimeseries(ctx context.Context, act *activity.EnduranceActivity) (*stride.ActivityTimeseries, error) {
+	if act.GpxFileURI == "" {
+		return nil, activity.ErrNoGPXFile
+	}
+
+	data, err := s.obj.DownloadObject(ctx, act.GpxFileURI)
+	if err != nil {
+		return nil, err
+	}
+
+	_, ts, err := stride.ParseGPXFileFromMemory(data)
+	if err != nil {
+		return nil, err
+	}
+
+	return ts, nil
+}
+
+// GetActivityRawTimeseries retrieves an activity's raw timeseries data.
+//
+// The data is unmarshalled into the provided timeseries object, which must be a pointer.
+func (s *store) GetActivityRawTimeseries(ctx context.Context, activityRaw *activity.ProviderActivityRawData, ts stride.ActivityTimeseriesConvertible) error {
+	if !activityRaw.DetailedActivityURI.Valid {
+		return nil
+	}
+
+	data, err := s.obj.DownloadObject(ctx, activityRaw.DetailedActivityURI.String)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(data, ts)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *store) ListAthleteActivitiesEndurance(ctx context.Context, providerID int, athleteID uuid.UUID) ([]*activity.EnduranceActivity, error) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"time"
@@ -16,6 +17,10 @@ import (
 	"github.com/gabrieleangeletti/vo2/database"
 	"github.com/gabrieleangeletti/vo2/internal/generated/models"
 	"github.com/gabrieleangeletti/vo2/provider"
+)
+
+var (
+	ErrNoGPXFile = errors.New("activity has no GPX file")
 )
 
 type ProviderActivityRawData struct {

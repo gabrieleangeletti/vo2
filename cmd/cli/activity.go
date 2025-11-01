@@ -87,17 +87,9 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 				}
 
 				var streams *strava.ActivityStream
-
-				if raw.DetailedActivityURI.Valid {
-					data, err := cfg.store.GetObjectStore().DownloadObject(ctx, raw.DetailedActivityURI.String)
-					if err != nil {
-						log.Fatal(err)
-					}
-
-					err = json.Unmarshal(data, &streams)
-					if err != nil {
-						log.Fatal(err)
-					}
+				err = cfg.store.GetActivityRawTimeseries(ctx, raw, streams)
+				if err != nil {
+					log.Fatal(err)
 				}
 
 				act, err := cfg.store.StoreActivityEndurance(ctx, stride.Provider(prov.Slug), raw, stravaActivity, streams)
@@ -155,18 +147,9 @@ func analyzeActivityThresholdsCmd(cfg config) *cobra.Command {
 					log.Fatal(err)
 				}
 
-				if act.GpxFileURI == "" {
-					continue
-				}
-
-				data, err := cfg.store.GetObjectStore().DownloadObject(ctx, act.GpxFileURI)
+				ts, err := cfg.store.GetActivityTimeseries(ctx, act)
 				if err != nil {
-					log.Fatal(err)
-				}
-
-				_, ts, err := stride.ParseGPXFileFromMemory(data)
-				if err != nil {
-					if errors.Is(err, stride.ErrNoTrackPoints) {
+					if errors.Is(err, activity.ErrNoGPXFile) || errors.Is(err, stride.ErrNoTrackPoints) {
 						_, err = cfg.store.UpsertActivityThresholdAnalysis(ctx, &activity.ThresholdAnalysis{
 							ActivityEnduranceID: act.ID,
 							TimeAtLt1Threshold:  0,
