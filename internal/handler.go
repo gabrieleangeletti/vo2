@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
-	"math"
 	"net/http"
 	"os"
 	"slices"
@@ -518,68 +517,40 @@ func stravaWebhookHandler(db *sqlx.DB, dbStore store.Store, objectStore store.Ob
 
 				strideActivity, err := stravaActivity.ToActivity()
 				if err != nil {
-					log.Fatal(err)
+					slog.Error(err.Error())
+					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
+					return
 				}
 
-				ts, err := streams.ToTimeseries(activityRaw.StartTime)
+				timeseries, err := streams.ToTimeseries(strideActivity.StartTime)
 				if err != nil {
-					log.Fatal(err)
+					slog.Error(err.Error())
+					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
+					return
 				}
 
-				gpxData, err := stride.CreateGPXFileInMemory(strideActivity, ts)
+				gpxFileURI, err := dbStore.UploadActivityGPX(ctx, act, strideActivity, timeseries)
 				if err != nil {
-					log.Fatal(err)
+					slog.Error(err.Error())
+					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
+					return
 				}
+				act.GpxFileURI = gpxFileURI
 
-				objectKey := fmt.Sprintf("activity_details/%s/gpx/%s.gpx", "strava", act.ID)
-
-				res, err := objectStore.UploadObject(ctx, objectKey, gpxData, nil)
+				hrMetrics, err := timeseries.HRMetrics()
 				if err != nil {
-					log.Fatal(fmt.Errorf("Error uploading activity streams: %w", err))
+					slog.Error(err.Error())
+					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
+					return
 				}
+				act.AvgHR = hrMetrics.AvgHR
+				act.MaxHR = hrMetrics.MaxHR
 
-				act.GpxFileURI = res.Location
-
-				avgHR, err := stride.CalculateAverageHeartRate(ts, stride.AvgHeartRateAnalysisConfig{
-					Method:       stride.HeartRateMethodTimeWeighted,
-					ExcludeZeros: true,
-					MinValidRate: 40,
-					MaxValidRate: 220,
-					MaxHeartRate: 193,
-				})
+				act, err = dbStore.UpsertActivityEndurance(ctx, act)
 				if err != nil {
-					if !errors.Is(err, stride.ErrNoValidData) {
-						fmt.Printf("Error: %v\n", err)
-						return
-					}
-				}
-
-				if avgHR > 0 {
-					avgValue := int16(math.Round(avgHR))
-					act.AvgHR = avgValue
-				}
-
-				thirtySec := 30 * time.Second
-
-				maxHR, err := stride.CalculateMaxHeartRate(ts, stride.MaxHeartRateAnalysisConfig{
-					Method:         stride.MaxHeartRateMethodRollingWindow,
-					WindowDuration: &thirtySec,
-				})
-				if err != nil {
-					if !errors.Is(err, stride.ErrNoValidData) {
-						fmt.Printf("Error: %v\n", err)
-						return
-					}
-				}
-
-				if maxHR > 0 {
-					maxValue := int16(maxHR)
-					act.MaxHR = maxValue
-				}
-
-				_, err = dbStore.UpsertActivityEndurance(ctx, act)
-				if err != nil {
-					log.Fatal(err)
+					slog.Error(err.Error())
+					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
+					return
 				}
 
 				tags := act.ExtractActivityTags()
