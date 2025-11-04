@@ -71,6 +71,13 @@ DO UPDATE SET
 	raw_analysis = @raw_analysis
 RETURNING *;
 
+-- name: GetProviderActivityRaw :one
+SELECT
+    *
+FROM vo2.provider_activity_raw_data
+WHERE
+    id = $1;
+
 -- name: GetAthleteCurrentMeasurements :one
 SELECT
     *

@@ -278,6 +278,35 @@ func (q *Queries) GetAthleteVolume(ctx context.Context, arg GetAthleteVolumePara
 	return items, nil
 }
 
+const getProviderActivityRaw = `-- name: GetProviderActivityRaw :one
+SELECT
+    id, provider_id, athlete_id, provider_activity_id, start_time, elapsed_time, iana_timezone, utc_offset, data, detailed_activity_uri, created_at, updated_at, deleted_at
+FROM vo2.provider_activity_raw_data
+WHERE
+    id = $1
+`
+
+func (q *Queries) GetProviderActivityRaw(ctx context.Context, id uuid.UUID) (Vo2ProviderActivityRawDatum, error) {
+	row := q.db.QueryRowContext(ctx, getProviderActivityRaw, id)
+	var i Vo2ProviderActivityRawDatum
+	err := row.Scan(
+		&i.ID,
+		&i.ProviderID,
+		&i.AthleteID,
+		&i.ProviderActivityID,
+		&i.StartTime,
+		&i.ElapsedTime,
+		&i.IanaTimezone,
+		&i.UtcOffset,
+		&i.Data,
+		&i.DetailedActivityUri,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
 const getUserAthletes = `-- name: GetUserAthletes :many
 SELECT
     id, user_id, age, height_cm, country, gender, first_name, last_name, display_name, email, created_at, updated_at, deleted_at

@@ -20,6 +20,7 @@ import (
 // Reader defines the interface for read-only database operations.
 // It's implemented by Store.
 type Reader interface {
+	GetProviderActivityRaw(ctx context.Context, id uuid.UUID) (*activity.ProviderActivityRawData, error)
 	GetActivityEndurance(ctx context.Context, id uuid.UUID) (*activity.EnduranceActivity, error)
 	GetActivityTimeseries(ctx context.Context, act *activity.EnduranceActivity) (*stride.ActivityTimeseries, error)
 	GetActivityRawTimeseries(ctx context.Context, activityRaw *activity.ProviderActivityRawData, ts stride.ActivityTimeseriesConvertible) error
@@ -234,6 +235,15 @@ func (s *store) StoreActivityEndurance(ctx context.Context, provider stride.Prov
 	}
 
 	return act, nil
+}
+
+func (s *store) GetProviderActivityRaw(ctx context.Context, id uuid.UUID) (*activity.ProviderActivityRawData, error) {
+	res, err := s.q.GetProviderActivityRaw(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return activity.NewProviderActivityRawData(res), nil
 }
 
 // GetActivityEndurance retrieves an endurance activity by its ID.

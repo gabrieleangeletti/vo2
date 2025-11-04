@@ -64,7 +64,7 @@ func NewHandler(db *sqlx.DB, options ...func(*Handler)) *Handler {
 	mux.HandleFunc("GET /providers/strava/webhook", stravaRegisterWebhookHandler(h.db))
 	mux.HandleFunc("POST /providers/strava/webhook", stravaWebhookHandler(h.db, h.store))
 
-	mux.HandleFunc("GET /athletes/{athleteID}/metrics/volume", athleteVolumeHandler(h.db, h.store))
+	mux.HandleFunc("GET /athletes/{athleteID}/metrics/volume", athleteVolumeHandler(h.store))
 
 	h.handler = h.chain(mux)
 
@@ -222,6 +222,54 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 	}
 
 	slog.Info("Successfully processed historical activities", "athleteId", task.AthleteID, "processedCount", len(activities))
+
+	return nil
+}
+
+func (h *Handler) PostProcessActivityTask(ctx context.Context, task PostProcessActivityTask) error {
+	driver := NewStravaDriver()
+
+	credentials, err := ensureValidCredentials(ctx, h.db, driver, &task.Provider, task.AthleteID)
+	if err != nil {
+		return err
+	}
+
+	client := driver.NewClient(credentials.AccessToken)
+
+	activityRaw, err := h.store.GetProviderActivityRaw(ctx, task.RawActivityID)
+	if err != nil {
+		return err
+	}
+
+	var stravaActivity *strava.ActivityDetailed
+	err = json.Unmarshal(activityRaw.Data, &stravaActivity)
+	if err != nil {
+		return err
+	}
+
+	streams, err := client.GetActivityStreams(stravaActivity.ID)
+	if err != nil {
+		return err
+	}
+
+	err = h.store.UploadRawActivityDetails(ctx, stride.ProviderStrava, activityRaw, streams)
+	if err != nil {
+		return err
+	}
+
+	act, err := h.store.StoreActivityEndurance(ctx, stride.ProviderStrava, activityRaw, stravaActivity, streams)
+	if err != nil {
+		return err
+	}
+
+	tags := act.ExtractActivityTags()
+
+	if len(tags) > 0 {
+		err = h.store.UpsertTagsAndLinkActivity(ctx, act, tags)
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -450,13 +498,6 @@ func stravaWebhookHandler(db *sqlx.DB, dbStore store.Store) func(http.ResponseWr
 					return
 				}
 
-				streams, err := client.GetActivityStreams(stravaActivity.ID)
-				if err != nil {
-					slog.Error(err.Error())
-					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
-					return
-				}
-
 				data, err := json.Marshal(stravaActivity)
 				if err != nil {
 					slog.Error(err.Error())
@@ -481,31 +522,11 @@ func stravaWebhookHandler(db *sqlx.DB, dbStore store.Store) func(http.ResponseWr
 					return
 				}
 
-				activityRaw.ID = activityRawID
-
-				err = dbStore.UploadRawActivityDetails(ctx, stride.ProviderStrava, &activityRaw, streams)
-				if err != nil {
-					slog.Error(err.Error())
-					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
-					return
-				}
-
-				act, err := dbStore.StoreActivityEndurance(ctx, stride.ProviderStrava, &activityRaw, stravaActivity, streams)
-				if err != nil {
-					slog.Error(err.Error())
-					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
-					return
-				}
-
-				tags := act.ExtractActivityTags()
-
-				if len(tags) > 0 {
-					err = dbStore.UpsertTagsAndLinkActivity(ctx, act, tags)
-					if err != nil {
-						slog.Error(err.Error())
-						http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
-						return
-					}
+				if err := queuePostProcessActivityTask(ctx, athlete.ID, prov, activityRawID); err != nil {
+					slog.Error("Failed to queue post process tasks", "error", err, "rawActivityId", activityRawID)
+					// Queue post process tasks synchronously to ensure completion in case we are serverless (e.g. Lambda).
+					// Don't fail the entire auth flow if queuing fails - user is still authenticated.
+					// TODO: we should rearchitect this to run async even in serverless environments.
 				}
 			}
 		}
@@ -548,7 +569,28 @@ func queueHistoricalDataTasks(ctx context.Context, athleteID uuid.UUID, provider
 	return nil
 }
 
-func athleteVolumeHandler(db *sqlx.DB, dbStore store.Store) func(http.ResponseWriter, *http.Request) {
+func queuePostProcessActivityTask(ctx context.Context, athleteID uuid.UUID, prov *provider.Provider, rawActivityID uuid.UUID) error {
+	sqsClient, err := NewSQSClient()
+	if err != nil {
+		return fmt.Errorf("failed to create SQS client: %w", err)
+	}
+
+	task := PostProcessActivityTask{
+		AthleteID:     athleteID,
+		Provider:      *prov,
+		RawActivityID: rawActivityID,
+	}
+
+	if err := sqsClient.SendPostProcessActivityTask(ctx, task); err != nil {
+		return fmt.Errorf("failed to send post process activity task: %w", err)
+	}
+
+	slog.Info("Queued post process activity task", "rawActivityId", rawActivityID)
+
+	return nil
+}
+
+func athleteVolumeHandler(dbStore store.Store) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		apiKey := util.GetSecret("VO2_API_KEY", true)
 		if r.Header.Get("x-vo2-api-key") != apiKey {

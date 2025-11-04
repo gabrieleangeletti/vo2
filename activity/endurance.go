@@ -134,6 +134,21 @@ func (a *ProviderActivityRawData) Save(ctx context.Context, db *sqlx.DB) error {
 	return nil
 }
 
+func NewProviderActivityRawData(a models.Vo2ProviderActivityRawDatum) *ProviderActivityRawData {
+	return &ProviderActivityRawData{
+		ID:                  a.ID,
+		ProviderID:          int(a.ProviderID),
+		AthleteID:           a.AthleteID,
+		ProviderActivityID:  a.ProviderActivityID,
+		StartTime:           a.StartTime,
+		ElapsedTime:         int(a.ElapsedTime),
+		IanaTimezone:        a.IanaTimezone,
+		UTCOffset:           a.UtcOffset,
+		Data:                a.Data,
+		DetailedActivityURI: a.DetailedActivityUri,
+	}
+}
+
 func GetProviderActivityRawData(ctx context.Context, db *sqlx.DB, providerID int, athleteID uuid.UUID) ([]*ProviderActivityRawData, error) {
 	var data []*ProviderActivityRawData
 

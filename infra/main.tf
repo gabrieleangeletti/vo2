@@ -58,6 +58,33 @@ resource "aws_lambda_event_source_mapping" "historical_data_queue_trigger" {
   batch_size       = 3
 }
 
+# SQS Queue for post processing incoming activities
+resource "aws_sqs_queue" "post_processing_queue" {
+  name                        = "vo2-post-processing-queue"
+  content_based_deduplication = true
+  visibility_timeout_seconds  = 300     # 5 minutes
+  message_retention_seconds   = 1209600 # 14 days
+  receive_wait_time_seconds   = 20      # long polling
+
+  redrive_policy = jsonencode({
+    deadLetterTargetArn = aws_sqs_queue.post_processing_dlq.arn
+    maxReceiveCount     = 3
+  })
+}
+
+# Dead Letter Queue for failed post processing activities
+resource "aws_sqs_queue" "post_processing_dlq" {
+  name                      = "vo2-post-processing-dlq"
+  message_retention_seconds = 1209600 # 14 days
+}
+
+# Lambda trigger from SQS
+resource "aws_lambda_event_source_mapping" "post_processing_queue_trigger" {
+  event_source_arn = aws_sqs_queue.post_processing_queue.arn
+  function_name    = aws_lambda_function.vo2_lambda.function_name
+  batch_size       = 3
+}
+
 # S3 bucket for storing raw activity data
 resource "aws_s3_bucket" "data" {
   bucket = var.s3_bucket_name

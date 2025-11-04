@@ -91,18 +91,42 @@ func (l *LambdaHandler) HandleSQSRequest(ctx context.Context, sqsEvent events.SQ
 	for _, record := range sqsEvent.Records {
 		slog.Info("Processing SQS message", "messageId", record.MessageId)
 
-		var task HistoricalDataTask
-		if err := json.Unmarshal([]byte(record.Body), &task); err != nil {
+		var message SQSTaskMessage
+		if err := json.Unmarshal([]byte(record.Body), &message); err != nil {
 			slog.Error("Failed to unmarshal SQS message", "error", err, "messageId", record.MessageId)
 			continue
 		}
 
-		if err := l.handler.ProcessHistoricalDataTask(ctx, task); err != nil {
-			slog.Error("Failed to process historical data task", "error", err, "messageId", record.MessageId, "athleteId", task.AthleteID)
-			return err
-		}
+		switch message.Type {
+		case TaskTypeHistoricalData:
+			var task HistoricalDataTask
+			if err := json.Unmarshal(message.Data, &task); err != nil {
+				slog.Error("Failed to unmarshal historical data task", "error", err, "messageId", record.MessageId)
+				continue
+			}
 
-		slog.Info("Successfully processed SQS message", "messageId", record.MessageId, "athleteId", task.AthleteID)
+			if err := l.handler.ProcessHistoricalDataTask(ctx, task); err != nil {
+				slog.Error("Failed to process historical data task", "error", err, "messageId", record.MessageId, "athleteId", task.AthleteID)
+				return err
+			}
+			slog.Info("Successfully processed historical data", "messageId", record.MessageId, "athleteId", task.AthleteID)
+
+		case TaskTypePostProcessActivity:
+			var task PostProcessActivityTask
+			if err := json.Unmarshal(message.Data, &task); err != nil {
+				slog.Error("Failed to unmarshal post process activity task", "error", err, "messageId", record.MessageId)
+				continue
+			}
+			if err := l.handler.PostProcessActivityTask(ctx, task); err != nil {
+				slog.Error("Failed to post process activity", "error", err, "messageId", record.MessageId, "rawActivityId", task.RawActivityID)
+				return err
+			}
+			slog.Info("Successfully post processed activity", "messageId", record.MessageId, "rawActivityId", task.RawActivityID)
+
+		default:
+			slog.Error("Unknown task type", "type", message.Type, "messageId", record.MessageId)
+			continue // Skip unknown types gracefully
+		}
 	}
 
 	return nil

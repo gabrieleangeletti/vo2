@@ -8,9 +8,23 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
-	"github.com/gabrieleangeletti/vo2/util"
 	"github.com/google/uuid"
+
+	"github.com/gabrieleangeletti/vo2/provider"
+	"github.com/gabrieleangeletti/vo2/util"
 )
+
+type SQSTaskType string
+
+const (
+	TaskTypeHistoricalData      SQSTaskType = "historical_data"
+	TaskTypePostProcessActivity SQSTaskType = "post_process_activity"
+)
+
+type SQSTaskMessage struct {
+	Type SQSTaskType     `json:"type"`
+	Data json.RawMessage `json:"data"`
+}
 
 type HistoricalDataTaskType string
 
@@ -26,9 +40,16 @@ type HistoricalDataTask struct {
 	EndTime    time.Time              `json:"endTime"`
 }
 
+type PostProcessActivityTask struct {
+	AthleteID     uuid.UUID         `json:"athleteId"`
+	Provider      provider.Provider `json:"provider"`
+	RawActivityID uuid.UUID         `json:"rawActivityId"`
+}
+
 type SQSClient struct {
-	client   *sqs.Client
-	queueURL string
+	client                 *sqs.Client
+	historicalQueueURL     string
+	postProcessingQueueURL string
 }
 
 func NewSQSClient() (*SQSClient, error) {
@@ -38,11 +59,14 @@ func NewSQSClient() (*SQSClient, error) {
 	}
 
 	client := sqs.NewFromConfig(cfg)
-	queueURL := util.GetSecret("HISTORICAL_DATA_QUEUE_URL", true)
+
+	historicalQueueURL := util.GetSecret("HISTORICAL_DATA_QUEUE_URL", true)
+	postProcessingQueueURL := util.GetSecret("POST_PROCESSING_QUEUE_URL", true)
 
 	return &SQSClient{
-		client:   client,
-		queueURL: queueURL,
+		client:                 client,
+		historicalQueueURL:     historicalQueueURL,
+		postProcessingQueueURL: postProcessingQueueURL,
 	}, nil
 }
 
@@ -52,9 +76,19 @@ func (s *SQSClient) SendHistoricalDataTask(ctx context.Context, task HistoricalD
 		return err
 	}
 
+	message := SQSTaskMessage{
+		Type: TaskTypeHistoricalData,
+		Data: taskJSON,
+	}
+
+	messageJSON, err := json.Marshal(message)
+	if err != nil {
+		return err
+	}
+
 	_, err = s.client.SendMessage(ctx, &sqs.SendMessageInput{
-		QueueUrl:       aws.String(s.queueURL),
-		MessageBody:    aws.String(string(taskJSON)),
+		QueueUrl:       aws.String(s.historicalQueueURL),
+		MessageBody:    aws.String(string(messageJSON)),
 		MessageGroupId: aws.String(task.AthleteID.String()),
 	})
 	if err != nil {
@@ -62,4 +96,27 @@ func (s *SQSClient) SendHistoricalDataTask(ctx context.Context, task HistoricalD
 	}
 
 	return nil
+}
+
+func (s *SQSClient) SendPostProcessActivityTask(ctx context.Context, task PostProcessActivityTask) error {
+	taskJSON, err := json.Marshal(task)
+	if err != nil {
+		return err
+	}
+
+	message := SQSTaskMessage{
+		Type: TaskTypePostProcessActivity,
+		Data: taskJSON,
+	}
+
+	messageJSON, err := json.Marshal(message)
+	if err != nil {
+		return err
+	}
+
+	_, err = s.client.SendMessage(ctx, &sqs.SendMessageInput{
+		QueueUrl:    aws.String(s.postProcessingQueueURL),
+		MessageBody: aws.String(string(messageJSON)),
+	})
+	return err
 }
