@@ -20,6 +20,7 @@ resource "aws_lambda_function" "vo2_lambda" {
       SECRETS_EXTENSION_ENABLED = "true"
       DOPPLER_SECRET_NAME       = var.doppler_secret_name
       HISTORICAL_DATA_QUEUE_URL = aws_sqs_queue.historical_data_queue.url
+      POST_PROCESSING_QUEUE_URL = aws_sqs_queue.post_processing_queue.url
     }
   }
 }
