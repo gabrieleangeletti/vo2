@@ -60,11 +60,10 @@ resource "aws_lambda_event_source_mapping" "historical_data_queue_trigger" {
 
 # SQS Queue for post processing incoming activities
 resource "aws_sqs_queue" "post_processing_queue" {
-  name                        = "vo2-post-processing-queue"
-  content_based_deduplication = true
-  visibility_timeout_seconds  = 300     # 5 minutes
-  message_retention_seconds   = 1209600 # 14 days
-  receive_wait_time_seconds   = 20      # long polling
+  name                       = "vo2-post-processing-queue"
+  visibility_timeout_seconds = 300     # 5 minutes
+  message_retention_seconds  = 1209600 # 14 days
+  receive_wait_time_seconds  = 20      # long polling
 
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.post_processing_dlq.arn
