@@ -116,7 +116,7 @@ func evalThresholdAnalysisCmd(cfg config) *cobra.Command {
 					MinValidPointsPerBucket:    5,
 					ThresholdTolerancePercent:  0.05,
 					LT1OverlapTolerancePercent: 0.05,
-					MinConsecutiveBuckets:      6,
+					MinConsecutiveBuckets:      4,
 					ConsecutivePeriodThreshold: 0.80,
 				})
 				if err != nil {

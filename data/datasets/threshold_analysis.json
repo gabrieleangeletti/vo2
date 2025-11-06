@@ -1,5 +1,12 @@
 [
   {
+    "id": "06c9f4ea-8577-4949-a587-57a45a956847",
+    "date": "2025-11-06T00:00:00Z",
+    "sport": "treadmill",
+    "kind": "lt2",
+    "expected": 1300
+  },
+  {
     "id": "fde0ec6e-b852-4aed-a7e7-3458095bb9e8",
     "date": "2025-10-30T00:00:00Z",
     "sport": "treadmill",
