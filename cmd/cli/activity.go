@@ -14,6 +14,7 @@ import (
 	"github.com/gabrieleangeletti/stride"
 	"github.com/gabrieleangeletti/stride/strava"
 	"github.com/gabrieleangeletti/vo2/activity"
+	"github.com/gabrieleangeletti/vo2/internal"
 	"github.com/gabrieleangeletti/vo2/provider"
 )
 
@@ -87,9 +88,31 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 				}
 
 				var streams *strava.ActivityStream
-				err = cfg.store.GetActivityRawTimeseries(ctx, raw, streams)
-				if err != nil {
-					log.Fatal(err)
+
+				if !raw.DetailedActivityURI.Valid {
+					driver := internal.NewStravaDriver()
+
+					credentials, err := internal.EnsureValidCredentials(ctx, cfg.DB, driver, &prov, athleteID)
+					if err != nil {
+						log.Fatal(err)
+					}
+
+					client := driver.NewClient(credentials.AccessToken)
+
+					streams, err = client.GetActivityStreams(stravaActivity.ID)
+					if err != nil {
+						log.Fatal(err)
+					}
+
+					err = cfg.store.UploadRawActivityDetails(ctx, stride.ProviderStrava, raw, streams)
+					if err != nil {
+						log.Fatal(err)
+					}
+				} else {
+					err = cfg.store.GetActivityRawTimeseries(ctx, raw, streams)
+					if err != nil {
+						log.Fatal(err)
+					}
 				}
 
 				act, err := cfg.store.StoreActivityEndurance(ctx, stride.Provider(prov.Slug), raw, stravaActivity, streams)

@@ -66,7 +66,7 @@ func (d *StravaDriver) RefreshToken(ctx context.Context, refreshToken string) (*
 	return &token, nil
 }
 
-func ensureValidCredentials[C any, A any](ctx context.Context, db *sqlx.DB, driver ProviderDriver[C, A], prov *provider.Provider, athleteID uuid.UUID) (*ProviderOAuth2Credentials, error) {
+func EnsureValidCredentials[C any, A any](ctx context.Context, db *sqlx.DB, driver ProviderDriver[C, A], prov *provider.Provider, athleteID uuid.UUID) (*ProviderOAuth2Credentials, error) {
 	user, err := GetAthleteUser(ctx, db, athleteID)
 	if err != nil {
 		return nil, err

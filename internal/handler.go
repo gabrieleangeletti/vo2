@@ -127,7 +127,7 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 	// TODO: make provider agnostic
 	driver := NewStravaDriver()
 
-	credentials, err := ensureValidCredentials(ctx, h.db, driver, prov, task.AthleteID)
+	credentials, err := EnsureValidCredentials(ctx, h.db, driver, prov, task.AthleteID)
 	if err != nil {
 		return fmt.Errorf("failed to get valid credentials: %w", err)
 	}
@@ -229,7 +229,7 @@ func (h *Handler) ProcessHistoricalDataTask(ctx context.Context, task Historical
 func (h *Handler) PostProcessActivityTask(ctx context.Context, task PostProcessActivityTask) error {
 	driver := NewStravaDriver()
 
-	credentials, err := ensureValidCredentials(ctx, h.db, driver, &task.Provider, task.AthleteID)
+	credentials, err := EnsureValidCredentials(ctx, h.db, driver, &task.Provider, task.AthleteID)
 	if err != nil {
 		return err
 	}
@@ -460,7 +460,7 @@ func stravaWebhookHandler(db *sqlx.DB, dbStore store.Store) func(http.ResponseWr
 
 		driver := NewStravaDriver()
 
-		credentials, err := ensureValidCredentials(r.Context(), db, driver, prov, athlete.ID)
+		credentials, err := EnsureValidCredentials(r.Context(), db, driver, prov, athlete.ID)
 		if err != nil {
 			slog.Error(err.Error())
 			http.Error(w, ErrGeneric.Error(), http.StatusBadRequest)
@@ -522,11 +522,11 @@ func stravaWebhookHandler(db *sqlx.DB, dbStore store.Store) func(http.ResponseWr
 					return
 				}
 
-				if err := queuePostProcessActivityTask(ctx, athlete.ID, prov, activityRawID); err != nil {
+				err = queuePostProcessActivityTask(ctx, athlete.ID, prov, activityRawID)
+				if err != nil {
 					slog.Error("Failed to queue post process tasks", "error", err, "rawActivityId", activityRawID)
-					// Queue post process tasks synchronously to ensure completion in case we are serverless (e.g. Lambda).
-					// Don't fail the entire auth flow if queuing fails - user is still authenticated.
-					// TODO: we should rearchitect this to run async even in serverless environments.
+					http.Error(w, ErrGeneric.Error(), http.StatusInternalServerError)
+					return
 				}
 			}
 		}
