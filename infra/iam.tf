@@ -37,7 +37,8 @@ data "aws_iam_policy_document" "lambda_sqs_policy" {
       "sqs:GetQueueAttributes"
     ]
     resources = [
-      aws_sqs_queue.historical_data_queue.arn
+      aws_sqs_queue.historical_data_queue.arn,
+      aws_sqs_queue.post_processing_queue.arn
     ]
   }
 }
