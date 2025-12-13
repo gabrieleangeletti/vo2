@@ -27,6 +27,7 @@ func newAnalysisCmd(cfg config) *cobra.Command {
 		Long:  `Analysis cli`,
 	}
 
+	cmd.AddCommand(analyzeAerobicThresholdTestCmd(cfg))
 	cmd.AddCommand(evalThresholdAnalysisCmd(cfg))
 
 	return cmd
@@ -175,6 +176,68 @@ func evalThresholdAnalysisCmd(cfg config) *cobra.Command {
 
 			fmt.Printf("RMSE: %.3f\n", rmse)
 			fmt.Printf("MAE:  %.3f\n", mae)
+		},
+	}
+}
+
+func analyzeAerobicThresholdTestCmd(cfg config) *cobra.Command {
+	return &cobra.Command{
+		Use:   "analyze-aet-test",
+		Short: "Analyze aerobic threshold test using hr drift metric",
+		Long:  `Analyze aerobic threshold test using hr drift metric`,
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) < 2 {
+				log.Fatal("Missing arguments.")
+			}
+
+			activityID := uuid.MustParse(args[0])
+			targetAet, err := strconv.ParseInt(args[1], 10, 64)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			ctx := cmd.Context()
+
+			activities, err := cfg.store.ListAthleteActivitiesEnduranceByIDs(ctx, []uuid.UUID{activityID})
+			if err != nil {
+				log.Fatal("Error getting activities: ", err)
+			}
+
+			if len(activities) > 1 {
+				log.Fatal("Expected only one activity", len(activities))
+			}
+
+			act := activities[0]
+
+			ts, err := cfg.store.GetActivityTimeseries(ctx, act)
+			if err != nil {
+				if errors.Is(err, activity.ErrNoGPXFile) {
+					log.Fatal("Activity has no GPX file", "id", act.ID)
+				}
+
+				if errors.Is(err, stride.ErrNoTrackPoints) {
+					log.Fatal("Activity has no track points", "id", act.ID)
+				}
+
+				log.Fatal(err)
+			}
+
+			result, err := stride.AnalyzeHeartRateDrift(ts, stride.HeartRateDriftConfig{
+				TargetAeT:         int(targetAet),
+				AeTTolerance:      5,
+				BucketSizeSeconds: 60,
+				MinDriftDuration:  40 * time.Minute,
+			})
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			fmt.Printf("--- 1. Simple HR Drift (Controlled Test) ---\n")
+			fmt.Printf("  First Half Avg HR:     %.2f BPM\n", result.FirstHalfAvgHR)
+			fmt.Printf("  Second Half Avg HR:    %.2f BPM\n", result.SecondHalfAvgHR)
+			fmt.Printf("  Raw Drift:             %.2f BPM\n", result.SimpleDriftBPM)
+			fmt.Printf("  **Simple Drift %%:     **%.2f%%**\n", result.SimpleDriftPercentage)
+			fmt.Printf("----------------------------------\n")
 		},
 	}
 }
