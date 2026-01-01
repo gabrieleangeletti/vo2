@@ -233,9 +233,10 @@ func analyzeAerobicThresholdTestCmd(cfg config) *cobra.Command {
 			}
 
 			fmt.Printf("--- 1. Simple HR Drift (Controlled Test) ---\n")
-			fmt.Printf("  First Half Avg HR:     %.2f BPM\n", result.FirstHalfAvgHR)
-			fmt.Printf("  Second Half Avg HR:    %.2f BPM\n", result.SecondHalfAvgHR)
-			fmt.Printf("  Raw Drift:             %.2f BPM\n", result.SimpleDriftBPM)
+			fmt.Printf("  Total time:            %s \n", formatSecondsToMinutesSeconds(result.ValidDurationSeconds))
+			fmt.Printf("  First Half Avg HR:     %.2f bpm\n", result.FirstHalfAvgHR)
+			fmt.Printf("  Second Half Avg HR:    %.2f bpm\n", result.SecondHalfAvgHR)
+			fmt.Printf("  Raw Drift:             %.2f bpm\n", result.SimpleDriftBPM)
 			fmt.Printf("  **Simple Drift %%:     **%.2f%%**\n", result.SimpleDriftPercentage)
 			fmt.Printf("----------------------------------\n")
 		},
@@ -280,4 +281,13 @@ func MAE(yTrue, yPred []float64) (float64, error) {
 
 	mae := sumAbs / float64(len(yTrue))
 	return mae, nil
+}
+
+func formatSecondsToMinutesSeconds(totalSeconds int) string {
+	duration := time.Duration(totalSeconds) * time.Second
+
+	minutes := int(duration.Minutes())
+	seconds := int(duration.Seconds()) % 60
+
+	return fmt.Sprintf("%dm %ds", minutes, seconds)
 }

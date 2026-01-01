@@ -172,6 +172,20 @@ FROM
 WHERE
     user_id = @user_id;
 
+-- name: GetAthleteRunningYTDVolume :one
+SELECT
+    COALESCE(SUM(a.distance), 0)::int AS total_distance_meters,
+    COALESCE(SUM(a.moving_time), 0)::bigint AS total_moving_time_seconds,
+    COALESCE(SUM(a.elev_gain), 0)::int AS total_elevation_gain_meters,
+    COUNT(*)::int AS activity_count
+FROM vo2.activities_endurance a
+JOIN vo2.providers p ON a.provider_id = p.id
+WHERE
+    a.athlete_id = @athlete_id
+    AND p.slug = @provider_slug
+    AND a.start_time >= date_trunc('year', NOW())
+    AND lower(a.sport) IN ('running', 'trail-running');
+
 -- name: GetAthleteVolume :many
 WITH selected_sports AS (
     SELECT DISTINCT lower(ss.sport) AS sport

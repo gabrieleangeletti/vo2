@@ -165,6 +165,45 @@ func (q *Queries) GetAthleteCurrentMeasurements(ctx context.Context, athleteID u
 	return i, err
 }
 
+const getAthleteRunningYTDVolume = `-- name: GetAthleteRunningYTDVolume :one
+SELECT
+    COALESCE(SUM(a.distance), 0)::int AS total_distance_meters,
+    COALESCE(SUM(a.moving_time), 0)::bigint AS total_moving_time_seconds,
+    COALESCE(SUM(a.elev_gain), 0)::int AS total_elevation_gain_meters,
+    COUNT(*)::int AS activity_count
+FROM vo2.activities_endurance a
+JOIN vo2.providers p ON a.provider_id = p.id
+WHERE
+    a.athlete_id = $1
+    AND p.slug = $2
+    AND a.start_time >= date_trunc('year', NOW())
+    AND lower(a.sport) IN ('running', 'trail-running')
+`
+
+type GetAthleteRunningYTDVolumeParams struct {
+	AthleteID    uuid.UUID
+	ProviderSlug string
+}
+
+type GetAthleteRunningYTDVolumeRow struct {
+	TotalDistanceMeters      int32
+	TotalMovingTimeSeconds   int64
+	TotalElevationGainMeters int32
+	ActivityCount            int32
+}
+
+func (q *Queries) GetAthleteRunningYTDVolume(ctx context.Context, arg GetAthleteRunningYTDVolumeParams) (GetAthleteRunningYTDVolumeRow, error) {
+	row := q.db.QueryRowContext(ctx, getAthleteRunningYTDVolume, arg.AthleteID, arg.ProviderSlug)
+	var i GetAthleteRunningYTDVolumeRow
+	err := row.Scan(
+		&i.TotalDistanceMeters,
+		&i.TotalMovingTimeSeconds,
+		&i.TotalElevationGainMeters,
+		&i.ActivityCount,
+	)
+	return i, err
+}
+
 const getAthleteVolume = `-- name: GetAthleteVolume :many
 WITH selected_sports AS (
     SELECT DISTINCT lower(ss.sport) AS sport

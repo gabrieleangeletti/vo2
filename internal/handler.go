@@ -65,6 +65,7 @@ func NewHandler(db *sqlx.DB, options ...func(*Handler)) *Handler {
 	mux.HandleFunc("POST /providers/strava/webhook", stravaWebhookHandler(h.db, h.store))
 
 	mux.HandleFunc("GET /athletes/{athleteID}/metrics/volume", athleteVolumeHandler(h.store))
+	mux.HandleFunc("GET /athletes/{athleteID}/metrics/running-ytd-volume", athleteRunningYTDVolumeHandler(h.store))
 
 	h.handler = h.chain(mux)
 
@@ -711,6 +712,49 @@ func athleteVolumeHandler(dbStore store.Store) func(http.ResponseWriter, *http.R
 			"sports":    sportStrings,
 			"startDate": startDateTime.Format("2006-01-02"),
 			"data":      dataBySport,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(response)
+	}
+}
+
+func athleteRunningYTDVolumeHandler(dbStore store.Store) func(http.ResponseWriter, *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		apiKey := util.GetSecret("VO2_API_KEY", true)
+		if r.Header.Get("x-vo2-api-key") != apiKey {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		ctx := r.Context()
+
+		athleteIDStr := r.PathValue("athleteID")
+		athleteID, err := uuid.Parse(athleteIDStr)
+		if err != nil {
+			http.Error(w, "Invalid athlete ID", http.StatusBadRequest)
+			return
+		}
+
+		athlete, err := dbStore.GetAthlete(ctx, athleteID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				http.Error(w, "User not found", http.StatusNotFound)
+				return
+			}
+		}
+
+		volume, err := dbStore.GetAthleteYTDVolume(ctx, athlete.ID)
+		if err != nil {
+			slog.Error("Failed to get athlete running YTD volume", "error", err, "athleteID", athleteID)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
+		response := map[string]any{
+			"athleteId": athlete.ID,
+			"volume":    volume,
 		}
 
 		w.Header().Set("Content-Type", "application/json")

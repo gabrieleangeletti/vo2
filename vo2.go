@@ -92,3 +92,9 @@ type GetAthleteVolumeParams struct {
 	Sports       []stride.Sport `json:"sports"`
 	StartDate    time.Time      `json:"startDate"`
 }
+
+type AthleteTotalRunningVolume struct {
+	TotalDistanceMeters      int32 `json:"totalDistanceMeters"`
+	TotalMovingTimeSeconds   int64 `json:"totalMovingTimeSeconds"`
+	TotalElevationGainMeters int32 `json:"totalElevationGainMeters"`
+}
