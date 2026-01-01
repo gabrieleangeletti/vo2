@@ -93,6 +93,11 @@ type GetAthleteVolumeParams struct {
 	StartDate    time.Time      `json:"startDate"`
 }
 
+type GetAthleteYTDVolumeParams struct {
+	AthleteID    uuid.UUID `json:"athleteId"`
+	ProviderSlug string    `json:"providerSlug"`
+}
+
 type AthleteTotalRunningVolume struct {
 	TotalDistanceMeters      int32 `json:"totalDistanceMeters"`
 	TotalMovingTimeSeconds   int64 `json:"totalMovingTimeSeconds"`

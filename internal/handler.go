@@ -745,7 +745,16 @@ func athleteRunningYTDVolumeHandler(dbStore store.Store) func(http.ResponseWrite
 			}
 		}
 
-		volume, err := dbStore.GetAthleteYTDVolume(ctx, athlete.ID)
+		provider := r.URL.Query().Get("provider")
+		if provider == "" {
+			http.Error(w, "Missing required query parameter: provider", http.StatusBadRequest)
+			return
+		}
+
+		volume, err := dbStore.GetAthleteYTDVolume(ctx, vo2.GetAthleteYTDVolumeParams{
+			AthleteID:    athlete.ID,
+			ProviderSlug: provider,
+		})
 		if err != nil {
 			slog.Error("Failed to get athlete running YTD volume", "error", err, "athleteID", athleteID)
 			http.Error(w, "Internal server error", http.StatusInternalServerError)

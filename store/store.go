@@ -32,7 +32,7 @@ type Reader interface {
 	GetUserAthletes(ctx context.Context, userID uuid.UUID) ([]*vo2.Athlete, error)
 	GetAthleteCurrentMeasurements(ctx context.Context, athleteID uuid.UUID) (*vo2.AthleteCurrentMeasurements, error)
 	GetAthleteVolume(ctx context.Context, params vo2.GetAthleteVolumeParams) (map[stride.Sport][]*vo2.AthleteVolumeData, error)
-	GetAthleteYTDVolume(ctx context.Context, athleteID uuid.UUID) (*vo2.AthleteTotalRunningVolume, error)
+	GetAthleteYTDVolume(ctx context.Context, params vo2.GetAthleteYTDVolumeParams) (*vo2.AthleteTotalRunningVolume, error)
 }
 
 // Store defines the interface for read and write database operations.
@@ -474,9 +474,10 @@ func (s *store) GetAthleteVolume(ctx context.Context, params vo2.GetAthleteVolum
 	return volumeData, nil
 }
 
-func (s *store) GetAthleteYTDVolume(ctx context.Context, athleteID uuid.UUID) (*vo2.AthleteTotalRunningVolume, error) {
+func (s *store) GetAthleteYTDVolume(ctx context.Context, params vo2.GetAthleteYTDVolumeParams) (*vo2.AthleteTotalRunningVolume, error) {
 	queryParams := models.GetAthleteRunningYTDVolumeParams{
-		AthleteID: athleteID,
+		AthleteID:    params.AthleteID,
+		ProviderSlug: params.ProviderSlug,
 	}
 
 	res, err := s.q.GetAthleteRunningYTDVolume(ctx, queryParams)
