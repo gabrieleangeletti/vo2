@@ -466,6 +466,12 @@ func (s *store) GetAthleteVolume(ctx context.Context, params vo2.GetAthleteVolum
 			TotalElapsedTimeSeconds:  r.TotalElapsedTimeSeconds,
 			TotalMovingTimeSeconds:   r.TotalMovingTimeSeconds,
 			TotalElevationGainMeters: r.TotalElevationGainMeters,
+			Longest: vo2.ActivityTotals{
+				ElapsedTimeSeconds:  r.LongestElapsedTimeSeconds,
+				MovingTimeSeconds:   r.LongestMovingTimeSeconds,
+				DistanceMeters:      r.LongestDistanceMeters,
+				ElevationGainMeters: r.LongestElevationGainMeters,
+			},
 		}
 
 		volumeData[sport] = append(volumeData[sport], entry)

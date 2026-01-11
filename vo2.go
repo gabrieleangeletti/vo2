@@ -77,12 +77,20 @@ type AthleteCurrentMeasurements struct {
 }
 
 type AthleteVolumeData struct {
-	Period                   string `json:"period"`
-	ActivityCount            int32  `json:"activityCount"`
-	TotalDistanceMeters      int32  `json:"totalDistanceMeters"`
-	TotalElapsedTimeSeconds  int64  `json:"totalElapsedTimeSeconds"`
-	TotalMovingTimeSeconds   int64  `json:"totalMovingTimeSeconds"`
-	TotalElevationGainMeters int32  `json:"totalElevationGainMeters"`
+	Period                   string         `json:"period"`
+	ActivityCount            int32          `json:"activityCount"`
+	TotalDistanceMeters      int32          `json:"totalDistanceMeters"`
+	TotalElapsedTimeSeconds  int64          `json:"totalElapsedTimeSeconds"`
+	TotalMovingTimeSeconds   int64          `json:"totalMovingTimeSeconds"`
+	TotalElevationGainMeters int32          `json:"totalElevationGainMeters"`
+	Longest                  ActivityTotals `json:"longest"`
+}
+
+type ActivityTotals struct {
+	ElapsedTimeSeconds  int64 `json:"elapsedTimeSeconds"`
+	MovingTimeSeconds   int64 `json:"movingTimeSeconds"`
+	DistanceMeters      int32 `json:"distanceMeters"`
+	ElevationGainMeters int32 `json:"elevationGainMeters"`
 }
 
 type GetAthleteVolumeParams struct {

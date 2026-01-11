@@ -219,7 +219,14 @@ period_data AS (
         COALESCE(SUM(a.distance), 0)::int AS total_distance_meters,
         COALESCE(SUM(a.elapsed_time), 0)::bigint AS total_elapsed_time_seconds,
         COALESCE(SUM(a.moving_time), 0)::bigint AS total_moving_time_seconds,
-        COALESCE(SUM(a.elev_gain), 0)::int AS total_elevation_gain_meters
+        COALESCE(SUM(a.elev_gain), 0)::int AS total_elevation_gain_meters,
+
+        -- Longest activity metrics (based on elapsed_time)
+        MAX(a.elapsed_time)::bigint AS longest_elapsed_time_seconds,
+        (array_agg(a.distance ORDER BY a.elapsed_time DESC))[1]::int AS longest_distance_meters,
+        (array_agg(a.moving_time ORDER BY a.elapsed_time DESC))[1]::bigint AS longest_moving_time_seconds,
+        (array_agg(a.elev_gain ORDER BY a.elapsed_time DESC))[1]::int AS longest_elevation_gain_meters
+
     FROM vo2.activities_endurance a
     JOIN vo2.providers p ON a.provider_id = p.id
     JOIN selected_sports ss ON lower(a.sport) = ss.sport
@@ -236,7 +243,14 @@ SELECT
     COALESCE(period_data.total_distance_meters, 0)::int as total_distance_meters,
     COALESCE(period_data.total_elapsed_time_seconds, 0)::bigint as total_elapsed_time_seconds,
     COALESCE(period_data.total_moving_time_seconds, 0)::bigint as total_moving_time_seconds,
-    COALESCE(period_data.total_elevation_gain_meters, 0)::int as total_elevation_gain_meters
+    COALESCE(period_data.total_elevation_gain_meters, 0)::int as total_elevation_gain_meters,
+
+    -- Longest activity return columns
+    COALESCE(period_data.longest_elapsed_time_seconds, 0)::bigint as longest_elapsed_time_seconds,
+    COALESCE(period_data.longest_distance_meters, 0)::int as longest_distance_meters,
+    COALESCE(period_data.longest_moving_time_seconds, 0)::bigint as longest_moving_time_seconds,
+    COALESCE(period_data.longest_elevation_gain_meters, 0)::int as longest_elevation_gain_meters
+
 FROM period_sports
 LEFT JOIN period_data
     ON period_sports.period_ts = period_data.period_ts
