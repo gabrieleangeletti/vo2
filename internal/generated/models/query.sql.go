@@ -57,6 +57,26 @@ func (q *Queries) GetActivityEndurance(ctx context.Context, id uuid.UUID) (Vo2Ac
 	return i, err
 }
 
+const getActivityEnduranceID = `-- name: GetActivityEnduranceID :one
+SELECT id FROM vo2.activities_endurance
+WHERE provider_id = $1
+  AND athlete_id = $2
+  AND provider_raw_activity_id = $3
+`
+
+type GetActivityEnduranceIDParams struct {
+	ProviderID            int32
+	AthleteID             uuid.UUID
+	ProviderRawActivityID uuid.UUID
+}
+
+func (q *Queries) GetActivityEnduranceID(ctx context.Context, arg GetActivityEnduranceIDParams) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, getActivityEnduranceID, arg.ProviderID, arg.AthleteID, arg.ProviderRawActivityID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getActivityTags = `-- name: GetActivityTags :many
 SELECT
     t.id, t.name, t.description, t.created_at, t.updated_at, t.deleted_at
@@ -610,10 +630,10 @@ func (q *Queries) ListAthleteActivitiesEndurance(ctx context.Context, arg ListAt
 
 const upsertActivityEndurance = `-- name: UpsertActivityEndurance :one
 INSERT INTO vo2.activities_endurance
-	(provider_id, athlete_id, provider_raw_activity_id, name, description, sport, start_time, end_time, iana_timezone, utc_offset, elapsed_time, moving_time, distance, elev_gain, elev_loss, avg_speed, avg_hr, max_hr, summary_polyline, summary_route, gpx_file_uri, fit_file_uri)
+	(id, provider_id, athlete_id, provider_raw_activity_id, name, description, sport, start_time, end_time, iana_timezone, utc_offset, elapsed_time, moving_time, distance, elev_gain, elev_loss, avg_speed, avg_hr, max_hr, summary_polyline, summary_route, gpx_file_uri, fit_file_uri)
 VALUES
 	(
-    	$1,
+		$1,
     	$2,
     	$3,
     	$4,
@@ -632,36 +652,38 @@ VALUES
     	$17,
     	$18,
     	$19,
-    	NULLIF($20, ''),
-    	$21,
-    	$22
+    	$20,
+    	NULLIF($21, ''),
+    	$22,
+    	$23
 )
 ON CONFLICT
 	(provider_id, athlete_id, provider_raw_activity_id)
 DO UPDATE SET
-	name = $4,
-	description = $5,
-	sport = $6,
-	start_time = $7,
-	end_time = $8,
-	iana_timezone = $9,
-	utc_offset = $10,
-	elapsed_time = $11,
-	moving_time = $12,
-	distance = $13,
-	elev_gain = $14,
-	elev_loss = $15,
-	avg_speed = $16,
-	avg_hr = $17,
-	max_hr = $18,
-	summary_polyline = $19,
-	summary_route = NULLIF($20, ''),
-	gpx_file_uri = $21,
-	fit_file_uri = $22
+	name = $5,
+	description = $6,
+	sport = $7,
+	start_time = $8,
+	end_time = $9,
+	iana_timezone = $10,
+	utc_offset = $11,
+	elapsed_time = $12,
+	moving_time = $13,
+	distance = $14,
+	elev_gain = $15,
+	elev_loss = $16,
+	avg_speed = $17,
+	avg_hr = $18,
+	max_hr = $19,
+	summary_polyline = $20,
+	summary_route = NULLIF($21, ''),
+	gpx_file_uri = $22,
+	fit_file_uri = $23
 RETURNING id, provider_id, athlete_id, provider_raw_activity_id, name, description, sport, start_time, end_time, iana_timezone, utc_offset, elapsed_time, moving_time, distance, elev_gain, elev_loss, avg_speed, avg_hr, max_hr, summary_polyline, summary_route, gpx_file_uri, fit_file_uri, created_at, updated_at, deleted_at
 `
 
 type UpsertActivityEnduranceParams struct {
+	ID                    uuid.UUID
 	ProviderID            int32
 	AthleteID             uuid.UUID
 	ProviderRawActivityID uuid.UUID
@@ -688,6 +710,7 @@ type UpsertActivityEnduranceParams struct {
 
 func (q *Queries) UpsertActivityEndurance(ctx context.Context, arg UpsertActivityEnduranceParams) (Vo2ActivitiesEndurance, error) {
 	row := q.db.QueryRowContext(ctx, upsertActivityEndurance,
+		arg.ID,
 		arg.ProviderID,
 		arg.AthleteID,
 		arg.ProviderRawActivityID,

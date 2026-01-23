@@ -1,8 +1,9 @@
 -- name: UpsertActivityEndurance :one
 INSERT INTO vo2.activities_endurance
-	(provider_id, athlete_id, provider_raw_activity_id, name, description, sport, start_time, end_time, iana_timezone, utc_offset, elapsed_time, moving_time, distance, elev_gain, elev_loss, avg_speed, avg_hr, max_hr, summary_polyline, summary_route, gpx_file_uri, fit_file_uri)
+	(id, provider_id, athlete_id, provider_raw_activity_id, name, description, sport, start_time, end_time, iana_timezone, utc_offset, elapsed_time, moving_time, distance, elev_gain, elev_loss, avg_speed, avg_hr, max_hr, summary_polyline, summary_route, gpx_file_uri, fit_file_uri)
 VALUES
 	(
+		@id,
     	@provider_id,
     	@athlete_id,
     	@provider_raw_activity_id,
@@ -49,6 +50,13 @@ DO UPDATE SET
 	gpx_file_uri = @gpx_file_uri,
 	fit_file_uri = @fit_file_uri
 RETURNING *;
+
+-- name: GetActivityEnduranceID :one
+SELECT id FROM vo2.activities_endurance
+WHERE provider_id = @provider_id
+  AND athlete_id = @athlete_id
+  AND provider_raw_activity_id = @provider_raw_activity_id;
+
 
 -- name: UpsertActivityThresholdAnalysis :one
 INSERT INTO vo2.activities_threshold_analysis (

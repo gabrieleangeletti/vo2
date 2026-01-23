@@ -154,7 +154,7 @@ func GetProviderActivityRawData(ctx context.Context, db *sqlx.DB, providerID int
 
 	err := db.SelectContext(ctx, &data, `
 	SELECT * FROM vo2.provider_activity_raw_data
-	WHERE provider_id = $1 AND athlete_id = $2
+	WHERE provider_id = $1 AND athlete_id = $2 AND start_time > '2025-11-03 16:50:20+00'
 	`, providerID, athleteID)
 	if err != nil {
 		return nil, err
@@ -264,6 +264,7 @@ func (a *EnduranceActivity) ExtractActivityTags() []*ActivityTag {
 // ToUpsertParams converts the domain model to sqlc UpsertActivityEndurance parameters
 func (a *EnduranceActivity) ToUpsertParams() models.UpsertActivityEnduranceParams {
 	return models.UpsertActivityEnduranceParams{
+		ID:                    a.ID,
 		ProviderID:            int32(a.ProviderID),
 		AthleteID:             a.AthleteID,
 		ProviderRawActivityID: a.ProviderRawActivityID,

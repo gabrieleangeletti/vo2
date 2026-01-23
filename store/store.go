@@ -203,6 +203,29 @@ func (s *store) StoreActivityEndurance(ctx context.Context, provider stride.Prov
 		if !(errors.Is(err, stride.ErrActivityIsNotEndurance) || errors.Is(err, stride.ErrUnsupportedSportType)) {
 			return nil, err
 		}
+		return nil, nil
+	}
+
+	// We check if the activity already exists in the database.
+	// If it does, we reuse the existing ID to ensure the GPX file URI matches the DB ID.
+	// If not, we generate a new UUID v7.
+	existingID, err := s.q.GetActivityEnduranceID(ctx, models.GetActivityEnduranceIDParams{
+		ProviderID:            int32(activityRaw.ProviderID),
+		AthleteID:             activityRaw.AthleteID,
+		ProviderRawActivityID: activityRaw.ID,
+	})
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+
+		newID, err := uuid.NewV7()
+		if err != nil {
+			return nil, err
+		}
+		act.ID = newID
+	} else {
+		act.ID = existingID
 	}
 
 	strideActivity, err := rawAct.ToActivity()
