@@ -154,7 +154,7 @@ func GetProviderActivityRawData(ctx context.Context, db *sqlx.DB, providerID int
 
 	err := db.SelectContext(ctx, &data, `
 	SELECT * FROM vo2.provider_activity_raw_data
-	WHERE provider_id = $1 AND athlete_id = $2 AND start_time > '2025-11-03 16:50:20+00'
+	WHERE provider_id = $1 AND athlete_id = $2
 	`, providerID, athleteID)
 	if err != nil {
 		return nil, err
@@ -245,7 +245,7 @@ func NewEnduranceActivity(a models.Vo2ActivitiesEndurance) *EnduranceActivity {
 
 // ExtractActivityTags extracts hashtags from the activity description.
 func (a *EnduranceActivity) ExtractActivityTags() []*ActivityTag {
-	if a.Description == "" {
+	if a == nil || a.Description == "" {
 		return nil
 	}
 

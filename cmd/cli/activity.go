@@ -87,7 +87,7 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 					log.Fatal(err)
 				}
 
-				var streams *strava.ActivityStream
+				var streams *strava.ActivityStream = &strava.ActivityStream{}
 
 				if !raw.DetailedActivityURI.Valid {
 					driver := internal.NewStravaDriver()
@@ -104,9 +104,11 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 						log.Fatal(err)
 					}
 
-					err = cfg.store.UploadRawActivityDetails(ctx, stride.ProviderStrava, raw, streams)
-					if err != nil {
-						log.Fatal(err)
+					if streams != nil {
+						err = cfg.store.UploadRawActivityDetails(ctx, stride.ProviderStrava, raw, streams)
+						if err != nil {
+							log.Fatal(err)
+						}
 					}
 				} else {
 					err = cfg.store.GetActivityRawTimeseries(ctx, raw, streams)
