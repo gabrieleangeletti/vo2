@@ -235,6 +235,7 @@ func analyzeAerobicThresholdTestCmd(cfg config) *cobra.Command {
 			score, err := stride.CalculateAerobicThresholdScore(result, stride.AerobicScoreConfig{
 				RestingHeartRate: 46,
 				InclinePercent:   7.0,
+				ManualPace:       &stride.Pace{Minutes: 7, Seconds: 53},
 			})
 			if err != nil {
 				log.Fatal(err)
@@ -255,7 +256,6 @@ func analyzeAerobicThresholdTestCmd(cfg config) *cobra.Command {
 
 			fmt.Printf("--- Score ---\n")
 			fmt.Printf("  Efficiency Factor:     %.2f\n", score.EfficiencyFactor)
-			fmt.Printf("  GAP pace:              %.2f\n", score.GradeAdjustedPace)
 			fmt.Printf("  Validity Multiplier:   %.2f\n", score.ValidityMultiplier)
 			fmt.Printf("  Working Heart rate:    %.2f\n", score.WorkingHeartRate)
 			fmt.Printf("  **Score**:             **%d**\n", score.Score)
