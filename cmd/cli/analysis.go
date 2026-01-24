@@ -232,6 +232,14 @@ func analyzeAerobicThresholdTestCmd(cfg config) *cobra.Command {
 				log.Fatal(err)
 			}
 
+			score, err := stride.CalculateAerobicThresholdScore(result, stride.AerobicScoreConfig{
+				RestingHeartRate: 46,
+				InclinePercent:   7.0,
+			})
+			if err != nil {
+				log.Fatal(err)
+			}
+
 			fmt.Printf("--- 1. Simple HR Drift (Controlled Test) ---\n")
 			fmt.Printf("  Total time:            %s \n", formatSecondsToMinutesSeconds(result.ValidDurationSeconds))
 			fmt.Printf("  First Half Avg HR:     %.2f bpm\n", result.FirstHalfAvgHR)
@@ -239,6 +247,18 @@ func analyzeAerobicThresholdTestCmd(cfg config) *cobra.Command {
 			fmt.Printf("  Raw Drift:             %.2f bpm\n", result.SimpleDriftBPM)
 			fmt.Printf("  **Simple Drift %%:     **%.2f%%**\n", result.SimpleDriftPercentage)
 			fmt.Printf("----------------------------------\n")
+
+			if !score.IsScoreValid {
+				fmt.Printf("--- Score not valid ---\n")
+				return
+			}
+
+			fmt.Printf("--- Score ---\n")
+			fmt.Printf("  Efficiency Factor:     %.2f\n", score.EfficiencyFactor)
+			fmt.Printf("  GAP pace:              %.2f\n", score.GradeAdjustedPace)
+			fmt.Printf("  Validity Multiplier:   %.2f\n", score.ValidityMultiplier)
+			fmt.Printf("  Working Heart rate:    %.2f\n", score.WorkingHeartRate)
+			fmt.Printf("  **Score**:             **%d**\n", score.Score)
 		},
 	}
 }
