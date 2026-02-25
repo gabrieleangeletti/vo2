@@ -263,10 +263,8 @@ func (h *Handler) PostProcessActivityTask(ctx context.Context, task PostProcessA
 		return err
 	}
 
-	tags := act.ExtractActivityTags()
-
-	if len(tags) > 0 {
-		err = h.store.UpsertTagsAndLinkActivity(ctx, act, tags)
+	if len(act.Tags) > 0 {
+		err = h.store.UpsertTagsAndLinkActivity(ctx, act, act.Tags)
 		if err != nil {
 			return err
 		}

@@ -253,6 +253,10 @@ func (s *store) StoreActivityEndurance(ctx context.Context, provider stride.Prov
 		act.MaxHR = hrMetrics.MaxHR
 	}
 
+	tags := act.ExtractActivityTags()
+	act.ApplyTreadmillOverrides(tags)
+	act.Tags = tags
+
 	act, err = s.UpsertActivityEndurance(ctx, act)
 	if err != nil {
 		return nil, err

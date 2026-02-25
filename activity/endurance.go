@@ -6,7 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -251,7 +254,7 @@ func (a *EnduranceActivity) ExtractActivityTags() []*ActivityTag {
 
 	var tags []*ActivityTag
 
-	re := regexp.MustCompile(`#[\p{L}\d_-]+`)
+	re := regexp.MustCompile(`#[\p{L}\d_=.-]+`)
 	hashTags := re.FindAllString(a.Description, -1)
 
 	for _, hashTag := range hashTags {
@@ -259,6 +262,64 @@ func (a *EnduranceActivity) ExtractActivityTags() []*ActivityTag {
 	}
 
 	return tags
+}
+
+func (a *EnduranceActivity) ApplyTreadmillOverrides(tags []*ActivityTag) {
+	tagMap := make(map[string]string, len(tags))
+	for _, t := range tags {
+		parts := strings.SplitN(t.Name, "=", 2)
+		if len(parts) == 2 {
+			tagMap[parts[0]] = parts[1]
+		}
+	}
+
+	if tagMap["type"] != "treadmill" {
+		return
+	}
+
+	paceStr, hasPace := tagMap["pace"]
+	inclinationStr, hasInclination := tagMap["inclination"]
+	if !hasPace || !hasInclination {
+		return
+	}
+
+	paceSeconds, err := parsePace(paceStr)
+	if err != nil || paceSeconds <= 0 {
+		return
+	}
+
+	inclination, err := strconv.ParseFloat(inclinationStr, 64)
+	if err != nil {
+		return
+	}
+
+	avgSpeed := 1000.0 / paceSeconds
+	distance := avgSpeed * float64(a.MovingTime)
+	elevGain := int32(math.Round(distance * (inclination / 100.0)))
+
+	a.AvgSpeed = avgSpeed
+	a.Distance = int(math.Round(distance))
+	a.ElevGain = &elevGain
+}
+
+func parsePace(s string) (float64, error) {
+	re := regexp.MustCompile(`^(\d+)m(\d+)s$`)
+	matches := re.FindStringSubmatch(s)
+	if matches == nil {
+		return 0, fmt.Errorf("invalid pace format: %s", s)
+	}
+
+	minutes, err := strconv.Atoi(matches[1])
+	if err != nil {
+		return 0, err
+	}
+
+	seconds, err := strconv.Atoi(matches[2])
+	if err != nil {
+		return 0, err
+	}
+
+	return float64(minutes*60 + seconds), nil
 }
 
 // ToUpsertParams converts the domain model to sqlc UpsertActivityEndurance parameters

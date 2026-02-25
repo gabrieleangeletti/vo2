@@ -122,9 +122,8 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 					log.Fatal(err)
 				}
 
-				tags := act.ExtractActivityTags()
-				if len(tags) > 0 {
-					err = cfg.store.UpsertTagsAndLinkActivity(ctx, act, tags)
+				if len(act.Tags) > 0 {
+					err = cfg.store.UpsertTagsAndLinkActivity(ctx, act, act.Tags)
 					if err != nil {
 						log.Fatal(err)
 					}
