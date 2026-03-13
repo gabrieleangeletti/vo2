@@ -181,7 +181,9 @@ func evalThresholdAnalysisCmd(cfg config) *cobra.Command {
 }
 
 func analyzeAerobicThresholdTestCmd(cfg config) *cobra.Command {
-	return &cobra.Command{
+	var paceFlag string
+
+	cmd := &cobra.Command{
 		Use:   "analyze-aet-test",
 		Short: "Analyze aerobic threshold test using hr drift metric",
 		Long:  `Analyze aerobic threshold test using hr drift metric`,
@@ -194,6 +196,16 @@ func analyzeAerobicThresholdTestCmd(cfg config) *cobra.Command {
 			targetAet, err := strconv.ParseInt(args[1], 10, 64)
 			if err != nil {
 				log.Fatal(err)
+			}
+
+			var manualPace *stride.Pace
+			if paceFlag != "" {
+				var minutes, seconds int
+				_, err := fmt.Sscanf(paceFlag, "%d:%d", &minutes, &seconds)
+				if err != nil {
+					log.Fatal("Invalid pace format. Use mm:ss (e.g., 7:53)")
+				}
+				manualPace = &stride.Pace{Minutes: minutes, Seconds: seconds}
 			}
 
 			ctx := cmd.Context()
@@ -235,7 +247,7 @@ func analyzeAerobicThresholdTestCmd(cfg config) *cobra.Command {
 			score, err := stride.CalculateAerobicThresholdScore(result, stride.AerobicScoreConfig{
 				RestingHeartRate: 46,
 				InclinePercent:   7.0,
-				ManualPace:       &stride.Pace{Minutes: 7, Seconds: 53},
+				ManualPace:       manualPace,
 			})
 			if err != nil {
 				log.Fatal(err)
@@ -261,6 +273,10 @@ func analyzeAerobicThresholdTestCmd(cfg config) *cobra.Command {
 			fmt.Printf("  **Score**:             **%d**\n", score.Score)
 		},
 	}
+
+	cmd.Flags().StringVar(&paceFlag, "pace", "", "Manual pace in mm:ss format (e.g., 7:53)")
+
+	return cmd
 }
 
 // RMSE computes the Root Mean Squared Error between predicted and actual values.
