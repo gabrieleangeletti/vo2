@@ -254,6 +254,7 @@ func analyzeAerobicThresholdTestCmd(cfg config) *cobra.Command {
 			}
 
 			fmt.Printf("--- 1. Simple HR Drift (Controlled Test) ---\n")
+			fmt.Printf("  Target AeT:            %d bpm\n", targetAet)
 			fmt.Printf("  Total time:            %s \n", formatSecondsToMinutesSeconds(result.ValidDurationSeconds))
 			fmt.Printf("  First Half Avg HR:     %.2f bpm\n", result.FirstHalfAvgHR)
 			fmt.Printf("  Second Half Avg HR:    %.2f bpm\n", result.SecondHalfAvgHR)
