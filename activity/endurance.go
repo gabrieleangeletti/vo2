@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+	"github.com/sqlc-dev/pqtype"
 
 	"github.com/gabrieleangeletti/stride"
 	"github.com/gabrieleangeletti/stride/strava"
@@ -158,6 +159,7 @@ func GetProviderActivityRawData(ctx context.Context, db *sqlx.DB, providerID int
 	err := db.SelectContext(ctx, &data, `
 	SELECT * FROM vo2.provider_activity_raw_data
 	WHERE provider_id = $1 AND athlete_id = $2
+	ORDER BY start_time DESC
 	`, providerID, athleteID)
 	if err != nil {
 		return nil, err
@@ -167,32 +169,33 @@ func GetProviderActivityRawData(ctx context.Context, db *sqlx.DB, providerID int
 }
 
 type EnduranceActivity struct {
-	ID                    uuid.UUID    `json:"id"`
-	ProviderID            int          `json:"providerId"`
-	AthleteID             uuid.UUID    `json:"athleteId"`
-	ProviderRawActivityID uuid.UUID    `json:"providerRawActivityId"`
-	Name                  string       `json:"name"`
-	Description           string       `json:"description,omitzero"`
-	Sport                 stride.Sport `json:"sport"`
-	StartTime             time.Time    `json:"startTime"`
-	EndTime               time.Time    `json:"endTime"`
-	IanaTimezone          string       `json:"ianaTimezone,omitzero"`
-	UTCOffset             *int32       `json:"utcOffset,omitempty"`
-	ElapsedTime           int          `json:"elapsedTime"`
-	MovingTime            int          `json:"movingTime"`
-	Distance              int          `json:"distance"`
-	ElevGain              *int32       `json:"elevGain"`
-	ElevLoss              *int32       `json:"elevLoss"`
-	AvgSpeed              float64      `json:"avgSpeed"`
-	AvgHR                 int16        `json:"avgHR,omitzero"`
-	MaxHR                 int16        `json:"maxHR,omitzero"`
-	SummaryPolyline       string       `json:"summaryPolyline,omitzero"`
-	SummaryRoute          string       `json:"summaryRoute,omitzero"`
-	GpxFileURI            string       `json:"gpxFileURI,omitzero"`
-	FitFileURI            string       `json:"fitFileURI,omitzero"`
-	CreatedAt             time.Time    `json:"createdAt"`
-	UpdatedAt             time.Time    `json:"updatedAt,omitzero"`
-	DeletedAt             time.Time    `json:"deletedAt,omitzero"`
+	ID                    uuid.UUID       `json:"id"`
+	ProviderID            int             `json:"providerId"`
+	AthleteID             uuid.UUID       `json:"athleteId"`
+	ProviderRawActivityID uuid.UUID       `json:"providerRawActivityId"`
+	Name                  string          `json:"name"`
+	Description           string          `json:"description,omitzero"`
+	Sport                 stride.Sport    `json:"sport"`
+	StartTime             time.Time       `json:"startTime"`
+	EndTime               time.Time       `json:"endTime"`
+	IanaTimezone          string          `json:"ianaTimezone,omitzero"`
+	UTCOffset             *int32          `json:"utcOffset,omitempty"`
+	ElapsedTime           int             `json:"elapsedTime"`
+	MovingTime            int             `json:"movingTime"`
+	Distance              int             `json:"distance"`
+	ElevGain              *int32          `json:"elevGain"`
+	ElevLoss              *int32          `json:"elevLoss"`
+	AvgSpeed              float64         `json:"avgSpeed"`
+	AvgHR                 int16           `json:"avgHR,omitzero"`
+	MaxHR                 int16           `json:"maxHR,omitzero"`
+	SummaryPolyline       string          `json:"summaryPolyline,omitzero"`
+	SummaryRoute          string          `json:"summaryRoute,omitzero"`
+	GpxFileURI            string          `json:"gpxFileURI,omitzero"`
+	FitFileURI            string          `json:"fitFileURI,omitzero"`
+	HrZoneDistribution    json.RawMessage `json:"hrZoneDistribution,omitempty"`
+	CreatedAt             time.Time       `json:"createdAt"`
+	UpdatedAt             time.Time       `json:"updatedAt,omitzero"`
+	DeletedAt             time.Time       `json:"deletedAt,omitzero"`
 
 	Provider *provider.Data `json:"provider"`
 	Tags     []*ActivityTag `json:"tags"`
@@ -219,6 +222,11 @@ func NewEnduranceActivity(a models.Vo2ActivitiesEndurance) *EnduranceActivity {
 		summaryRoute = a.SummaryRoute.(string)
 	}
 
+	var hrZoneDistribution json.RawMessage
+	if a.HrZoneDistribution.Valid {
+		hrZoneDistribution = a.HrZoneDistribution.RawMessage
+	}
+
 	return &EnduranceActivity{
 		ID:                    a.ID,
 		ProviderID:            int(a.ProviderID),
@@ -243,6 +251,7 @@ func NewEnduranceActivity(a models.Vo2ActivitiesEndurance) *EnduranceActivity {
 		SummaryRoute:          summaryRoute,
 		GpxFileURI:            a.GpxFileUri.String,
 		FitFileURI:            a.FitFileUri.String,
+		HrZoneDistribution:    hrZoneDistribution,
 	}
 }
 
@@ -324,6 +333,14 @@ func parsePace(s string) (float64, error) {
 
 // ToUpsertParams converts the domain model to sqlc UpsertActivityEndurance parameters
 func (a *EnduranceActivity) ToUpsertParams() models.UpsertActivityEnduranceParams {
+	var hrZoneDist pqtype.NullRawMessage
+	if len(a.HrZoneDistribution) > 0 {
+		hrZoneDist = pqtype.NullRawMessage{
+			RawMessage: a.HrZoneDistribution,
+			Valid:      true,
+		}
+	}
+
 	return models.UpsertActivityEnduranceParams{
 		ID:                    a.ID,
 		ProviderID:            int32(a.ProviderID),
@@ -348,6 +365,7 @@ func (a *EnduranceActivity) ToUpsertParams() models.UpsertActivityEnduranceParam
 		SummaryRoute:          a.SummaryRoute,
 		GpxFileUri:            sql.NullString{String: a.GpxFileURI, Valid: true},
 		FitFileUri:            sql.NullString{String: a.FitFileURI, Valid: true},
+		HrZoneDistribution:    hrZoneDist,
 	}
 }
 

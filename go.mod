@@ -8,7 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.31.6
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.87.3
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.3
-	github.com/gabrieleangeletti/stride v0.0.49
+	github.com/gabrieleangeletti/stride v0.0.59
 	github.com/go-chi/httplog/v3 v3.2.2
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.7.6
@@ -50,6 +50,7 @@ require (
 	github.com/olekukonko/ll v0.0.9 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
+	github.com/sqlc-dev/pqtype v0.3.0 // indirect
 	github.com/tkrajina/gpxgo v1.4.0 // indirect
 	github.com/twpayne/go-polyline v1.1.1 // indirect
 	golang.org/x/crypto v0.37.0 // indirect

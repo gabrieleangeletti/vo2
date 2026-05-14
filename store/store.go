@@ -23,6 +23,7 @@ type Reader interface {
 	GetProviderActivityRaw(ctx context.Context, id uuid.UUID) (*activity.ProviderActivityRawData, error)
 	GetActivityEndurance(ctx context.Context, id uuid.UUID) (*activity.EnduranceActivity, error)
 	GetActivityTimeseries(ctx context.Context, act *activity.EnduranceActivity) (*stride.ActivityTimeseries, error)
+	GetActivityGPXFromMemory(ctx context.Context, act *activity.EnduranceActivity) (*stride.Activity, *stride.ActivityTimeseries, error)
 	GetActivityRawTimeseries(ctx context.Context, activityRaw *activity.ProviderActivityRawData, ts stride.ActivityTimeseriesConvertible) error
 	ListAthleteActivitiesEndurance(ctx context.Context, providerID int, athleteID uuid.UUID) ([]*activity.EnduranceActivity, error)
 	ListAthleteActivitiesEnduranceByIDs(ctx context.Context, ids []uuid.UUID) ([]*activity.EnduranceActivity, error)
@@ -251,6 +252,24 @@ func (s *store) StoreActivityEndurance(ctx context.Context, provider stride.Prov
 		}
 		act.AvgHR = hrMetrics.AvgHR
 		act.MaxHR = hrMetrics.MaxHR
+
+		measurements, err := s.GetAthleteCurrentMeasurements(ctx, act.AthleteID)
+		if err == nil {
+			baseline := stride.AthleteBaseline{
+				MaxHR:     int(measurements.MaxHrValue),
+				RestingHR: int(measurements.RestingHrValue),
+				AeTHR:     int(measurements.Lt1Value),
+				AnTHR:     int(measurements.Lt2Value),
+			}
+
+			timeInZones, err := stride.ComputeTimeInZones(timeseries, baseline)
+			if err == nil {
+				data, err := json.Marshal(timeInZones)
+				if err == nil {
+					act.HrZoneDistribution = data
+				}
+			}
+		}
 	}
 
 	tags := act.ExtractActivityTags()
@@ -300,6 +319,19 @@ func (s *store) GetActivityTimeseries(ctx context.Context, act *activity.Enduran
 	}
 
 	return ts, nil
+}
+
+func (s *store) GetActivityGPXFromMemory(ctx context.Context, act *activity.EnduranceActivity) (*stride.Activity, *stride.ActivityTimeseries, error) {
+	if act.GpxFileURI == "" {
+		return nil, nil, activity.ErrNoGPXFile
+	}
+
+	data, err := s.obj.DownloadObject(ctx, act.GpxFileURI)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return stride.ParseGPXFileFromMemory(data)
 }
 
 // GetActivityRawTimeseries retrieves an activity's raw timeseries data.

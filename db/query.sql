@@ -1,6 +1,6 @@
 -- name: UpsertActivityEndurance :one
 INSERT INTO vo2.activities_endurance
-	(id, provider_id, athlete_id, provider_raw_activity_id, name, description, sport, start_time, end_time, iana_timezone, utc_offset, elapsed_time, moving_time, distance, elev_gain, elev_loss, avg_speed, avg_hr, max_hr, summary_polyline, summary_route, gpx_file_uri, fit_file_uri)
+	(id, provider_id, athlete_id, provider_raw_activity_id, name, description, sport, start_time, end_time, iana_timezone, utc_offset, elapsed_time, moving_time, distance, elev_gain, elev_loss, avg_speed, avg_hr, max_hr, summary_polyline, summary_route, gpx_file_uri, fit_file_uri, hr_zone_distribution)
 VALUES
 	(
 		@id,
@@ -25,7 +25,8 @@ VALUES
     	@summary_polyline,
     	NULLIF(@summary_route, ''),
     	@gpx_file_uri,
-    	@fit_file_uri
+    	@fit_file_uri,
+    	@hr_zone_distribution
 )
 ON CONFLICT
 	(provider_id, athlete_id, provider_raw_activity_id)
@@ -48,7 +49,8 @@ DO UPDATE SET
 	summary_polyline = @summary_polyline,
 	summary_route = NULLIF(@summary_route, ''),
 	gpx_file_uri = @gpx_file_uri,
-	fit_file_uri = @fit_file_uri
+	fit_file_uri = @fit_file_uri,
+	hr_zone_distribution = @hr_zone_distribution
 RETURNING *;
 
 -- name: GetActivityEnduranceID :one

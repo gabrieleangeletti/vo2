@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
-	"slices"
 	"strconv"
 
 	"github.com/google/uuid"
@@ -27,6 +26,7 @@ func newActivityCmd(cfg config) *cobra.Command {
 
 	cmd.AddCommand(normalizeActivityCmd(cfg))
 	cmd.AddCommand(analyzeActivityThresholdsCmd(cfg))
+	cmd.AddCommand(llmSummarizeCmd(cfg))
 
 	return cmd
 }
@@ -57,18 +57,6 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 			}
 
 			bar := progressbar.Default(int64(len(rawActivities)))
-
-			slices.SortFunc(rawActivities, func(a *activity.ProviderActivityRawData, b *activity.ProviderActivityRawData) int {
-				if a.StartTime.Before(b.StartTime) {
-					return 1
-				}
-
-				if a.StartTime.After(b.StartTime) {
-					return -1
-				}
-
-				return 0
-			})
 
 			for _, raw := range rawActivities {
 				err := bar.Add(1)
@@ -122,7 +110,7 @@ func normalizeActivityCmd(cfg config) *cobra.Command {
 					log.Fatal(err)
 				}
 
-				if len(act.Tags) > 0 {
+				if act != nil && len(act.Tags) > 0 {
 					err = cfg.store.UpsertTagsAndLinkActivity(ctx, act, act.Tags)
 					if err != nil {
 						log.Fatal(err)
