@@ -17,6 +17,7 @@ require (
 	github.com/olekukonko/tablewriter v1.1.0
 	github.com/schollz/progressbar/v3 v3.18.0
 	github.com/spf13/cobra v1.9.1
+	github.com/sqlc-dev/pqtype v0.3.0
 )
 
 require (
@@ -50,7 +51,6 @@ require (
 	github.com/olekukonko/ll v0.0.9 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/spf13/pflag v1.0.6 // indirect
-	github.com/sqlc-dev/pqtype v0.3.0 // indirect
 	github.com/tkrajina/gpxgo v1.4.0 // indirect
 	github.com/twpayne/go-polyline v1.1.1 // indirect
 	golang.org/x/crypto v0.37.0 // indirect

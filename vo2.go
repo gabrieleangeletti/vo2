@@ -94,6 +94,7 @@ type AthleteVolumeData struct {
 	TotalMovingTimeSeconds   int64          `json:"totalMovingTimeSeconds"`
 	TotalElevationGainMeters int32          `json:"totalElevationGainMeters"`
 	Longest                  ActivityTotals `json:"longest"`
+	HrZoneDistribution       map[int]int    `json:"hrZoneDistribution"`
 }
 
 type ActivityTotals struct {

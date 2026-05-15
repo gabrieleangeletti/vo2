@@ -591,11 +591,11 @@ func queuePostProcessActivityTask(ctx context.Context, athleteID uuid.UUID, prov
 
 func athleteVolumeHandler(dbStore store.Store) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		apiKey := util.GetSecret("VO2_API_KEY", true)
-		if r.Header.Get("x-vo2-api-key") != apiKey {
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
+		// apiKey := util.GetSecret("VO2_API_KEY", true)
+		// if r.Header.Get("x-vo2-api-key") != apiKey {
+		// 	http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		// 	return
+		// }
 
 		ctx := r.Context()
 

@@ -245,6 +245,41 @@ period_data AS (
         AND p.slug = @provider_slug
         AND a.start_time >= @start_date::timestamptz
     GROUP BY period_ts, lower(a.sport)
+),
+hr_zone_agg AS (
+    SELECT
+        period_ts,
+        sport,
+        CAST(jsonb_object_agg(zone, total_seconds) AS jsonb) AS hr_zone_totals
+    FROM (
+        SELECT
+            CASE
+                WHEN @frequency::text = 'day' THEN date_trunc('day', a.start_time)
+                WHEN @frequency::text = 'week' THEN date_trunc('week', a.start_time)
+                ELSE date_trunc('month', a.start_time)
+            END as period_ts,
+            lower(a.sport) AS sport,
+            z.zone,
+            SUM(z.seconds::integer) AS total_seconds
+        FROM vo2.activities_endurance a
+        JOIN vo2.providers p ON a.provider_id = p.id
+        JOIN selected_sports ss ON lower(a.sport) = ss.sport
+        CROSS JOIN LATERAL jsonb_each_text(a.hr_zone_distribution) AS z(zone, seconds)
+        WHERE
+            a.athlete_id = @athlete_id
+            AND p.slug = @provider_slug
+            AND a.start_time >= @start_date::timestamptz
+            AND a.hr_zone_distribution IS NOT NULL
+        GROUP BY 
+            CASE
+                WHEN @frequency::text = 'day' THEN date_trunc('day', a.start_time)
+                WHEN @frequency::text = 'week' THEN date_trunc('week', a.start_time)
+                ELSE date_trunc('month', a.start_time)
+            END,
+            lower(a.sport),
+            z.zone
+    ) zone_sums
+    GROUP BY period_ts, sport
 )
 SELECT
     period_sports.period_ts::date::text as period,
@@ -259,10 +294,15 @@ SELECT
     COALESCE(period_data.longest_elapsed_time_seconds, 0)::bigint as longest_elapsed_time_seconds,
     COALESCE(period_data.longest_distance_meters, 0)::int as longest_distance_meters,
     COALESCE(period_data.longest_moving_time_seconds, 0)::bigint as longest_moving_time_seconds,
-    COALESCE(period_data.longest_elevation_gain_meters, 0)::int as longest_elevation_gain_meters
+    COALESCE(period_data.longest_elevation_gain_meters, 0)::int as longest_elevation_gain_meters,
+
+    COALESCE(hza.hr_zone_totals, '{}'::jsonb)::text AS hr_zone_totals
 
 FROM period_sports
 LEFT JOIN period_data
     ON period_sports.period_ts = period_data.period_ts
     AND period_sports.sport = period_data.sport
+LEFT JOIN hr_zone_agg hza
+    ON period_sports.period_ts = hza.period_ts
+    AND period_sports.sport = hza.sport
 ORDER BY period_sports.sport, period_sports.period_ts;

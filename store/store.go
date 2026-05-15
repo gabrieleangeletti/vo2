@@ -533,6 +533,13 @@ func (s *store) GetAthleteVolume(ctx context.Context, params vo2.GetAthleteVolum
 			},
 		}
 
+		if r.HrZoneTotals != "" && r.HrZoneTotals != "{}" {
+			var zoneTotals map[int]int
+			if err := json.Unmarshal([]byte(r.HrZoneTotals), &zoneTotals); err == nil {
+				entry.HrZoneDistribution = zoneTotals
+			}
+		}
+
 		volumeData[sport] = append(volumeData[sport], entry)
 	}
 
